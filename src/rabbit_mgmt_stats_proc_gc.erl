@@ -14,9 +14,10 @@
 %%   Copyright (c) 2010-2015 Pivotal Software, Inc.  All rights reserved.
 %%
 
--module(rabbit_mgmt_stats_gc).
+-module(rabbit_mgmt_stats_proc_gc).
 
 -include_lib("rabbit_common/include/rabbit.hrl").
+-include("rabbit_mgmt_metrics.hrl").
 
 -behaviour(gen_server2).
 
@@ -42,8 +43,6 @@
 -define(GC_MIN_ROWS, 50).
 -define(GC_MIN_RATIO, 0.001).
 
--define(DROP_LENGTH, 1000).
-
 -define(PROCESS_ALIVENESS_TIMEOUT, 5000).
 
 %%----------------------------------------------------------------------------
@@ -65,7 +64,7 @@ start_link(Table) ->
 
 init([Table]) ->
     {ok, Interval} = application:get_env(rabbit, collect_statistics_interval),
-    rabbit_log:info("Statistics garbage collector started for table ~p.~n", [Table]),
+    rabbit_log:info("Statistics garbage collector started for table ~p.~n", [{Table, Interval}]),
     {ok, set_gc_timer(#state{interval = Interval,
                              gc_table = Table,
                              gc_index = rabbit_mgmt_stats_tables:key_index(Table)}),
@@ -112,15 +111,15 @@ floor(TS, #state{interval = Interval}) ->
 %%----------------------------------------------------------------------------
 
 gc_batch(#state{gc_index = Index} = State) ->
-    {ok, Policies} = application:get_env(
-                       rabbitmq_management, sample_retention_policies),
+    {ok, Timeout} = application:get_env(rabbitmq_management,
+                                        process_stats_gc_timeout),
     Total = ets:info(Index, size),
     Rows = erlang:max(erlang:min(Total, ?GC_MIN_ROWS), round(?GC_MIN_RATIO * Total)),
-    gc_batch(Rows, Policies, State).
+    gc_batch(Rows, Timeout, State).
 
-gc_batch(0, _Policies, State) ->
+gc_batch(0, _Timeout, State) ->
     State;
-gc_batch(Rows, Policies, State = #state{gc_next_key = Cont,
+gc_batch(Rows, Timeout, State = #state{gc_next_key = Cont,
                                         gc_table = Table,
                                         gc_index = Index}) ->
     Select = case Cont of
@@ -136,38 +135,43 @@ gc_batch(Rows, Policies, State = #state{gc_next_key = Cont,
                       Now = floor(
                               time_compat:os_system_time(milli_seconds),
                               State),
-                      gc(Key, Table, Policies, Now),
+                      gc(Key, Table, Timeout, Now),
                       Key
               end,
-    gc_batch(Rows - 1, Policies, State#state{gc_next_key = NewCont}).
+    gc_batch(Rows - 1, Timeout, State#state{gc_next_key = NewCont}).
 
-gc(Key, Table, Policies, Now) ->
-    Policy = pget(retention_policy(Table), Policies),
-    rabbit_mgmt_stats:gc({Policy, Now}, Table, Key).
 
-retention_policy(aggr_node_stats_coarse_node_stats) -> global;
-retention_policy(aggr_node_node_stats_coarse_node_node_stats) -> global;
-retention_policy(aggr_vhost_stats_deliver_get) -> global;
-retention_policy(aggr_vhost_stats_fine_stats) -> global;
-retention_policy(aggr_vhost_stats_queue_msg_rates) -> global;
-retention_policy(aggr_vhost_stats_msg_rates_details) -> global;
-retention_policy(aggr_vhost_stats_queue_msg_counts) -> global;
-retention_policy(aggr_vhost_stats_coarse_conn_stats) -> global;
-retention_policy(aggr_queue_stats_fine_stats) -> basic;
-retention_policy(aggr_queue_stats_deliver_get) -> basic;
-retention_policy(aggr_queue_stats_queue_msg_counts) -> basic;
-retention_policy(aggr_queue_stats_queue_msg_rates) -> basic;
-retention_policy(aggr_exchange_stats_fine_stats) -> basic;
-retention_policy(aggr_connection_stats_coarse_conn_stats) -> basic;
-retention_policy(aggr_channel_stats_deliver_get) -> basic;
-retention_policy(aggr_channel_stats_fine_stats) -> basic;
-retention_policy(aggr_channel_stats_queue_msg_counts) -> basic;
-retention_policy(aggr_queue_exchange_stats_fine_stats)   -> detailed;
-retention_policy(aggr_channel_exchange_stats_deliver_get) -> detailed;
-retention_policy(aggr_channel_exchange_stats_fine_stats) -> detailed;
-retention_policy(aggr_channel_queue_stats_deliver_get) -> detailed;
-retention_policy(aggr_channel_queue_stats_fine_stats) -> detailed;
-retention_policy(aggr_channel_queue_stats_queue_msg_counts) -> detailed.
+gc(Key, Table, Timeout, Now) ->
+    case ets:lookup(Table, {Key, stats}) of
+        %% Key is already cleared. Skipping
+        []                           -> ok;
+        [{{Key, stats}, _Stats, TS}] -> maybe_gc_process(Key, Table,
+                                                         TS, Now, Timeout)
+    end.
+
+maybe_gc_process(Pid, Table, LastStatsTS, Now, Timeout) ->
+    rabbit_log:error("Maybe GC process ~p~n", [{Table, LastStatsTS, Now, Timeout, Pid}]),
+    case Now - LastStatsTS < Timeout of
+        true  -> ok;
+        false ->
+            case process_status(Pid) of
+                %% Process doesn't exist on remote node
+                undefined -> rabbit_log:error("GC process ~p~n", [{Table, Pid}]),
+                             rabbit_event:notify(deleted_event(Table),
+                                                 [{pid, Pid}]);
+                %% Remote node is unreachable or process is alive
+                _        -> ok
+            end
+    end.
+
+process_status(Pid) when node(Pid) =:= node() ->
+    process_info(Pid, status);
+process_status(Pid) ->
+    rpc:block_call(node(Pid), erlang, process_info, [Pid, status],
+                   ?PROCESS_ALIVENESS_TIMEOUT).
+
+deleted_event(channel_stats)    -> channel_closed;
+deleted_event(connection_stats) -> connection_closed.
 
 name(Atom) ->
     list_to_atom((atom_to_list(Atom) ++ "_gc")).
