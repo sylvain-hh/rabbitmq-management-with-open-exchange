@@ -121,7 +121,7 @@ small { font-size: 0.8em; color: #888; }
 #main sub a { color: #888; }
 #main sub a:hover { color: #444; }
 table.argument-links { color: #888; }
-table.argument-links td { font-size: 0.64em; vertical-align: top; }
+table.argument-links td { font-size: 0.80em; vertical-align: top; }
 .unknown { color: #888; }
 
 table.facts { float: left; }

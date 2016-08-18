@@ -42,7 +42,23 @@
               </tr>
               <tr>
                 <th><label>Arguments:</label></th>
-                <td><div class="multifield" id="arguments"></div></td>
+                <td>
+                  <div class="multifield" id="arguments"></div>
+<% if (parent.type == 'headers') { %>
+            <table class="argument-links">
+              <tr>
+                <td>Add</td>
+                <td>
+                  <span class="argument-link" field="arguments" key="x-match" type="longstr">Binding type</span> <span class="help" id="x-match"></span> | <span class="argument-link" field="arguments" key="x-match-order" type="number">Binding order</span> <span class="help" id="x-match-order"></span><br/>
+                  Operators <span class="help" id="x-match-operators"></span> : <span class="argument-link" field="arguments" key="x-?eq" type="longstr">EQ</span>/<span class="argument-link" field="arguments" key="x-?ne" type="longstr">NE</span> | <span class="argument-link" field="arguments" key="x-?le" type="number">LE</span> | <span class="argument-link" field="arguments" key="x-?lt" type="number">LT</span> | <span class="argument-link" field="arguments" key="x-?gt" type="number">GT</span> | <span class="argument-link" field="arguments" key="x-?ge" type="number">GE</span> | <span class="argument-link" field="arguments" key="x-?ex" type="longstr">EX</span>/<span class="argument-link" field="arguments" key="x-?nx" type="longstr">NX</span><br/>
+                  <span class="argument-link" field="arguments" key="x-match-stop" type="longstr">Stop process</span> <span class="help" id="x-match-stop"></span> | <span class="argument-link" field="arguments" key="x-match-force" type="boolean">Force process</span> <span class="help" id="x-match-force"></span> | <span class="argument-link" field="arguments" key="x-match-dontroute" type="boolean">Don't route</span> <span class="help" id="x-match-dontroute"></span><br/>
+                  Goto binding <span class="help" id="x-match-goto"></span> : <span class="argument-link" field="arguments" key="x-match-goto-ontrue" type="number">on true</span> | <span class="argument-link" field="arguments" key="x-match-goto-onfalse" type="number">on false</span> | <span class="argument-link" field="arguments" key="x-match-goto" type="number">anyway</span><br/>
+                  <span class="argument-link" field="arguments" key="x-match-sendq" type="list">Send to queue(s)</span> <span class="help" id="x-match-sendq"></span> | <span class="argument-link" field="arguments" key="x-match-sende" type="list">Send to exchange(s)</span> <span class="help" id="x-match-sende"></span>
+                </td>
+              </tr>
+            </table>
+<% } %>
+                </td>
               </tr>
             </table>
       <input type="submit" value="Bind"/>

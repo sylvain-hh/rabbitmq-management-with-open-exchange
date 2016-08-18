@@ -343,6 +343,26 @@ HELP = {
     'process-reductions':
     'Rate at which reductions take place on this process.',
 
+    'x-match':
+    'Binding header x-match (text) :<br/><br/>Defines the "binding type" which affects the process that decide if this binding match is true.<br/>\
+    It must be one of these values or lefted blank for default :\
+    <ul>\
+      <li>all : all rules must match true (this is the default)</li>\
+      <li>any : at least one rule must match true</li>\
+      <li>one : exactly one rule must match true</li>\
+    </ul>',
+
+    'x-match-stop':
+    'Binding header x-match-stop (text) :<br/><br/>Defines this binding as the last to be processed for this exchange :\
+    <ul>\
+      <li>set value to "ontrue" if the process must stops when binding match is true</li>\
+      <li>set value to "onfalse" if the process must stops when binding match is false</li>\
+      <li>leave the value blank if the process must stops in all cases</li>\
+    </ul>',
+
+    'x-match-order':
+    'Binding header x-match-order (numeric) :<br/><br/>Defines the order in which this binding must be processed. The lower is the first (ascending order) and default value is 2000.',
+
     'foo': 'foo' // No comma.
 };
 
