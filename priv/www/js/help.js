@@ -357,7 +357,7 @@ HELP = {
     <ul>\
       <li>set value to "ontrue" if the process must stops when binding match is true</li>\
       <li>set value to "onfalse" if the process must stops when binding match is false</li>\
-      <li>leave the value blank if the process must stops in all cases</li>\
+      <li>set value to "onany" if the process must stops in all cases</li>\
     </ul>',
 
     'x-match-order':
