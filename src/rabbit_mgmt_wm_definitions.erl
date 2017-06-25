@@ -170,6 +170,7 @@ apply_defs(Body, Username, SuccessFun, ErrorFun) ->
         {ok, _, All} ->
             Version = maps:get(rabbit_version, All, undefined),
             try
+                validate_limits(All),
                 for_all(users,              Username, All,
                         fun(User, _Username) ->
                                 rabbit_mgmt_wm_user:put_user(
@@ -198,6 +199,7 @@ apply_defs(Body, Username, SuccessFun, ErrorFun, VHost) ->
             ErrorFun(E);
         {ok, _, All} ->
             try
+                validate_limits(All, VHost),
                 for_all(policies,    Username, All, VHost, fun add_policy/3),
                 for_all(queues,      Username, All, VHost, fun add_queue/3),
                 for_all(exchanges,   Username, All, VHost, fun add_exchange/3),
@@ -426,3 +428,33 @@ rv(VHost, Type, Props) -> rv(VHost, Type, name, Props).
 
 rv(VHost, Type, Name, Props) ->
     rabbit_misc:r(VHost, Type, maps:get(Name, Props, undefined)).
+
+%%--------------------------------------------------------------------
+
+validate_limits(All, VHost) ->
+
+validate_limits(All) ->
+    Queues = maps:get(queues, All),
+    {ok, VHostMap} = count_by_key(<<"vhost">>, Queues),
+    maps:fold(fun validate_vhost_limit/3, ok, VHostMap).
+
+validate_vhost_limit(VHost, Count, ok) ->
+    {ok, Limit} = rabbit_vhost_limit:queue_limit(VHost),
+    validate_vhost_limit(VHost, Count, Limit);
+validate_vhost_limit(VHost, Count, Limit) when is_integer(Count), is_integer(Limit), Count > Limit  ->
+    Err = rabbit_misc:format("Importing ~p queues for VHost ~p would exceed configured limit ~p", [Count, VHost, Limit]),
+    exit(Err);
+validate_vhost_limit(_VHost, Count, Limit) when is_integer(Count), is_integer(Limit), Count =< Limit  ->
+    ok.
+
+count_by_key(Key, Maps) ->
+    count_by_key(Key, Maps, maps:new()).
+
+count_by_key(_Key, [], AccMap) ->
+    {ok, AccMap};
+count_by_key(Key, [Map|Rest], AccMap0) ->
+    CKey = maps:get(Key, Map),
+    Count0 = maps:get(CKey, AccMap0, 0),
+    Count1 = Count0 + 1,
+    AccMap1 = maps:put(CKey, Count1, AccMap0),
+    count_by_key(Key, Rest, AccMap1).

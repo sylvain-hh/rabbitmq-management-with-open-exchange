@@ -530,7 +530,8 @@ function submit_import(form) {
             var vhost = ((idx <= 0) ? "" : "/" + esc($("select[name='vhost-upload'] option:selected").val()));
             form.action ="api/definitions" + vhost + '?auth=' + get_cookie_value('auth');
             form.submit();
-            window.location.replace("../../#/import-succeeded");
+            // TODO how to create error / success response?
+            // window.location.replace("../../#/import-succeeded");
         } else {
             return false;
         }
