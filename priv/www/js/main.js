@@ -528,7 +528,7 @@ function submit_import_file(vhost_name, file) {
     var fd = new FormData();
     fd.append('file', file);
     with_req('POST', form_action, fd, function(resp) {
-        alert(resp.responseText); // TODO handle response.
+        show_popup('info', 'Your definitions were imported successfully.');
     });
 }
 
@@ -559,7 +559,7 @@ function submit_import_maybe_apply_vhost_limits(vhost_limits, vhost_name, file) 
             var jstr = evt.target.result;
             json = jQuery.parseJSON(jstr);
         } catch (e) {
-            alert(e); // TODO
+            show_popup('warn', fmt_escape_html(e));
             return;
         }
 
@@ -569,7 +569,10 @@ function submit_import_maybe_apply_vhost_limits(vhost_limits, vhost_name, file) 
                 var vh_limit = vh_map[vhost_name]
                 var queue_count = json.queues.length;
                 if (queue_count > vh_limit) {
-                    alert('Queue count ' + queue_count + ' exceeds limit ' + vh_limit);
+                    var errmsg = 'Adding ' + queue_count +
+                                 ' queue(s) to virtual host "' + vhost_name +
+                                 '" would exceed the limit of ' + vh_limit + ' queue(s).';
+                    show_popup('warn', fmt_escape_html(errmsg));
                     error = true;
                 }
             }
@@ -590,14 +593,17 @@ function submit_import_maybe_apply_vhost_limits(vhost_limits, vhost_name, file) 
                         var vh_limit = vh_map[vhost];
                         var queue_count = q_map[vhost];
                         if (queue_count > vh_limit) {
-                            alert('Queue count ' + queue_count + ' exceeds limit ' + vh_limit);
+                            var errmsg = 'Adding ' + queue_count +
+                                        ' queue(s) to virtual host "' + vhost +
+                                        '" would exceed the limit of ' + vh_limit + ' queue(s).';
+                            show_popup('warn', fmt_escape_html(errmsg));
                             error = true;
                         }
                     }
                 });
             }
         }
-        if (error === false) {
+        if (!error) {
             submit_import_file(vhost_name, file);
         }
     };
