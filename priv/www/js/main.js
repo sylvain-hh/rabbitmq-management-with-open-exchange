@@ -533,11 +533,8 @@ function submit_import_file(vhost_name, file) {
 }
 
 function submit_import_maybe_apply_vhost_limits(vhost_limits, vhost_name, file) {
-    // Do vhost limits have max-queues value?
-    // api/vhost-limits
-    // [{"vhost":"vhost2","value":{"max-queues":4}}]
-    // [{"vhost":"/","value":{"max-queues":4}},{"vhost":"vhost2","value":{"max-queues":4}}]
-    // TODO: note that this does not take current queue count into account
+    // Note: this does not take current queue count into account. Server validation will
+    //       take current queue count into account
     var vh_map = {};
     for (var i = 0; i < vhost_limits.length; i++) {
         var vh_obj = vhost_limits[i];
@@ -566,12 +563,14 @@ function submit_import_maybe_apply_vhost_limits(vhost_limits, vhost_name, file) 
             return;
         }
 
+        var error = false;
         if (vhost_name && vh_map.hasOwnProperty(vhost_name)) {
             if (json.hasOwnProperty('queues')) {
                 var vh_limit = vh_map[vhost_name]
                 var queue_count = json.queues.length;
                 if (queue_count > vh_limit) {
                     alert('Queue count ' + queue_count + ' exceeds limit ' + vh_limit);
+                    error = true;
                 }
             }
         } else {
@@ -592,10 +591,14 @@ function submit_import_maybe_apply_vhost_limits(vhost_limits, vhost_name, file) 
                         var queue_count = q_map[vhost];
                         if (queue_count > vh_limit) {
                             alert('Queue count ' + queue_count + ' exceeds limit ' + vh_limit);
+                            error = true;
                         }
                     }
                 });
             }
+        }
+        if (error === false) {
+            submit_import_file(vhost_name, file);
         }
     };
     reader.readAsText(file);
@@ -621,16 +624,13 @@ function submit_import(form) {
                 vhost_name = vhost_upload.val();
             }
 
-            // TODO check file size
+            // TODO GH-423 check file size
             var file = form.file.files[0];
 
             // with_req(method, path, body, fun)
             with_req('GET', '/vhost-limits', null, function (resp) {
                 submit_import_vhost_limits(resp, vhost_name, file);
             });
-            /*
-            window.location.replace("../../#/import-succeeded");
-            */
         }
     }
     return false;
@@ -1114,13 +1114,13 @@ function with_reqs(reqs, acc, fun) {
     if (keys(reqs).length > 0) {
         var key = keys(reqs)[0];
         with_req('GET', reqs[key], null, function(resp) {
-                acc[key] = jQuery.parseJSON(resp.responseText);
-                var remainder = {};
-                for (var k in reqs) {
-                    if (k != key) remainder[k] = reqs[k];
-                }
-                with_reqs(remainder, acc, fun);
-            });
+            acc[key] = jQuery.parseJSON(resp.responseText);
+            var remainder = {};
+            for (var k in reqs) {
+                if (k != key) remainder[k] = reqs[k];
+            }
+            with_reqs(remainder, acc, fun);
+        });
     }
     else {
         fun(acc);
@@ -1283,10 +1283,14 @@ function check_bad_response(req, full_page_404) {
     }
     else if (req.status >= 400 && req.status <= 404) {
         var reason = JSON.parse(req.responseText).reason;
-        if (typeof(reason) != 'string') reason = JSON.stringify(reason);
+        if (typeof(reason) != 'string') {
+            reason = JSON.stringify(reason);
+        }
 
         var error = JSON.parse(req.responseText).error;
-        if (typeof(error) != 'string') error = JSON.stringify(error);
+        if (typeof(error) != 'string') {
+            error = JSON.stringify(error);
+        }
 
         if (error == 'bad_request' || error == 'not_found' || error == 'not_authorised') {
             show_popup('warn', fmt_escape_html(reason));
@@ -1321,8 +1325,7 @@ function check_bad_response(req, full_page_404) {
         update_status('error');
     }
     else {
-        debug("Got response code " + req.status + " with body " +
-              req.responseText);
+        debug("Got response code " + req.status + " with body " + req.responseText);
         clearInterval(timer);
     }
 

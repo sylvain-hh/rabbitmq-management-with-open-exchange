@@ -212,6 +212,8 @@ apply_defs(Body, Username, SuccessFun, ErrorFun, VHost) ->
 
 format(#amqp_error{name = Name, explanation = Explanation}) ->
     rabbit_data_coercion:to_binary(rabbit_misc:format("~s: ~s", [Name, Explanation]));
+format({vhost_limit_exceeded, ErrMsg}) ->
+    rabbit_data_coercion:to_binary(ErrMsg);
 format(E) ->
     rabbit_data_coercion:to_binary(rabbit_misc:format("~4096p", [E])).
 
@@ -442,23 +444,15 @@ validate_limits(All, VHost) ->
     validate_vhost_limit(VHost, Count, ok).
 
 validate_vhost_limit(VHost, Count, ok) ->
-    % TODO TODO TODO take current queue count into consideration
-    % is_over_queue_limit(Count, VHost) or something
-    validate_vhost_queue_limit(VHost, Count, rabbit_vhost_limit:queue_limit(VHost)).
+    validate_vhost_queue_limit(VHost, Count, rabbit_vhost_limit:would_exceed_queue_limit(Count, VHost)).
 
-validate_vhost_queue_limit(_VHost, _Count, undefined) ->
-    % Note: no limit for VHost is defined
+validate_vhost_queue_limit(_VHost, _Count, false) ->
+    % Note: would not exceed queue limit
     ok;
-validate_vhost_queue_limit(VHost, Count, {ok, Limit}) ->
-    % Note: limit of Limit for VHost is defined
-    enforce_vhost_limit(VHost, Count, Limit).
-
-enforce_vhost_limit(VHost, Count, Limit) when is_integer(Count), is_integer(Limit), Count > Limit  ->
-    ErrMsg = rabbit_misc:format("Attempt to add ~B queues to vhost '~s', but limit is ~B", [Count, VHost, Limit]),
-    ErrInfo = [{vhost, VHost}, {count, Count}, {limit, Limit}, {errmsg, ErrMsg}],
-    exit({vhost_limit_exceeded, ErrInfo});
-enforce_vhost_limit(_VHost, Count, Limit) when is_integer(Count), is_integer(Limit), Count =< Limit  ->
-    ok.
+validate_vhost_queue_limit(VHost, Count, {true, Limit, QueueCount}) ->
+    ErrInfo = [Count, VHost, QueueCount, Limit],
+    ErrMsg = rabbit_misc:format("Adding ~B queues to virtual host '~s' would exceed the limit of ~B queues.~nThis virtual host has ~B queues defined.", ErrInfo),
+    exit({vhost_limit_exceeded, ErrMsg}).
 
 count_by_key(Key, Maps) ->
     count_by_key(Key, Maps, maps:new()).
