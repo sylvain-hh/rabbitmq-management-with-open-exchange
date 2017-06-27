@@ -519,18 +519,49 @@ function show_popup(type, text, mode) {
     });
 }
 
-
-
-
 function submit_import(form) {
     if (form.file.value) {
         var confirm_upload = confirm('Are you sure you want to import a definitions file? Some entities (vhosts, users, queues, etc) may be overwritten!');
         if (confirm_upload === true) {
-            var idx = $("select[name='vhost-upload'] option:selected").index();
-            var vhost = ((idx <= 0) ? "" : "/" + esc($("select[name='vhost-upload'] option:selected").val()));
-            form.action ="api/definitions" + vhost + '?auth=' + get_cookie_value('auth');
+            var file = form.file.files[0];
+
+            var reader = new FileReader();
+            reader.onload = function(evt) {
+                try {
+                    var jstr = evt.target.result;
+                    var json = JSON.parse(jstr);
+                } catch (e) {
+                    alert(e);
+                    return;
+                }
+
+                var vhost_upload = $("select[name='vhost-upload'] option:selected");
+                var idx = vhost_upload.index();
+                var vhost = (idx <= 0) ? "" : "/" + esc(vhost_upload.val());
+                var form_action = "api/definitions" + vhost + '?auth=' + get_cookie_value('auth');
+
+                var xhr = xmlHttpRequest();
+                var fd = new FormData();
+                fd.append('file', file);
+
+                xhr.open('POST', form_action, true);
+                xhr.onreadystatechange = function() {
+                    if (xhr.readyState == 4) {
+                        alert(xhr.responseText); // TODO handle response.
+                    }
+                };
+
+                xhr.send(fd);
+            };
+
+            reader.readAsText(file);
+
+            /*
             form.submit();
             window.location.replace("../../#/import-succeeded");
+            */
+
+            return false;
         } else {
             return false;
         }
@@ -538,7 +569,6 @@ function submit_import(form) {
         return false;
     }
 };
-
 
 function postprocess() {
     $('form.confirm-queue').submit(function() {
@@ -1092,7 +1122,7 @@ function with_req(method, path, body, fun) {
 
     var json;
     var req = xmlHttpRequest();
-    req.open(method, 'api' + path, true );
+    req.open(method, 'api' + path, true);
     req.setRequestHeader('authorization', auth_header());
     req.setRequestHeader('x-vhost', current_vhost);
     req.onreadystatechange = function () {
