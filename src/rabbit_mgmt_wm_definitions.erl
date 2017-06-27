@@ -442,6 +442,8 @@ validate_limits(All, VHost) ->
     validate_vhost_limit(VHost, Count, ok).
 
 validate_vhost_limit(VHost, Count, ok) ->
+    % TODO TODO TODO take current queue count into consideration
+    % is_over_queue_limit(Count, VHost) or something
     validate_vhost_queue_limit(VHost, Count, rabbit_vhost_limit:queue_limit(VHost)).
 
 validate_vhost_queue_limit(_VHost, _Count, undefined) ->

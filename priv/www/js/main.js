@@ -519,55 +519,126 @@ function show_popup(type, text, mode) {
     });
 }
 
+function submit_import_file(vhost_name, file) {
+    var vhost_part = vhost_name ? '' : '/' + esc(vhost_name);
+    var form_action = "api/definitions" + vhost_part + '?auth=' + get_cookie_value('auth');
+
+    var xhr = xmlHttpRequest();
+    var fd = new FormData();
+    fd.append('file', file);
+
+    xhr.open('POST', form_action, true);
+    xhr.onreadystatechange = function() {
+        if (xhr.readyState == 4) {
+            alert(xhr.responseText); // TODO handle response.
+        }
+    };
+
+    xhr.send(fd);
+}
+
+function submit_import_maybe_apply_vhost_limits(vhost_limits, vhost_name, file) {
+    // Do vhost limits have max-queues value?
+    // api/vhost-limits
+    // [{"vhost":"vhost2","value":{"max-queues":4}}]
+    // [{"vhost":"/","value":{"max-queues":4}},{"vhost":"vhost2","value":{"max-queues":4}}]
+    // TODO: note that this does not take current queue count into account
+    var vh_map = {};
+    for (var i = 0; i < vhost_limits.length; i++) {
+        var vh_obj = vhost_limits[i];
+        var vh_name = vh_obj.vhost;
+        if (vh_obj.hasOwnProperty('value')) {
+            var vh_val = vh_obj.value;
+            if (vh_val.hasOwnProperty('max-queues')) {
+                vh_map[vh_name] = vh_val['max-queues'];
+            }
+        }
+    }
+
+    if (Object.keys(vh_map).length === 0) {
+        submit_import_file(vhost_name, file);
+        return;
+    }
+
+    var reader = new FileReader();
+    reader.onload = function(evt) {
+        var json = null;
+        try {
+            var jstr = evt.target.result;
+            json = jQuery.parseJSON(jstr);
+        } catch (e) {
+            alert(e); // TODO
+            return;
+        }
+
+        if (vhost_name && vh_map.hasOwnProperty(vhost_name)) {
+            if (json.hasOwnProperty('queues')) {
+                var vh_limit = vh_map[vhost_name]
+                var queue_count = json.queues.length;
+                if (queue_count > vh_limit) {
+                    alert('Queue count ' + queue_count + ' exceeds limit ' + vh_limit);
+                }
+            }
+        } else {
+            if (json.hasOwnProperty('queues')) {
+                var q_map = {};
+                for (var i = 0; i < json.queues.length; i++) {
+                    var queue = json.queues[i];
+                    var queue_vhost = queue.vhost;
+                    if (queue_vhost in q_map) {
+                        q_map[queue_vhost]++;
+                    } else {
+                        q_map[queue_vhost] = 1;
+                    }
+                }
+                Object.keys(vh_map).forEach(function(vhost) {
+                    if (q_map.hasOwnProperty(vhost)) {
+                        var vh_limit = vh_map[vhost];
+                        var queue_count = q_map[vhost];
+                        if (queue_count > vh_limit) {
+                            alert('Queue count ' + queue_count + ' exceeds limit ' + vh_limit);
+                        }
+                    }
+                });
+            }
+        }
+    };
+    reader.readAsText(file);
+}
+
+function submit_import_vhost_limits(resp, vhost_name, file) {
+    var vhost_limits = jQuery.parseJSON(resp.responseText);
+    if (vhost_limits && vhost_limits.length > 0) {
+        submit_import_maybe_apply_vhost_limits(vhost_limits, vhost_name, file);
+    } else {
+        submit_import_file(vhost_name, file);
+    }
+}
+
 function submit_import(form) {
     if (form.file.value) {
         var confirm_upload = confirm('Are you sure you want to import a definitions file? Some entities (vhosts, users, queues, etc) may be overwritten!');
         if (confirm_upload === true) {
+            var vhost_upload = $("select[name='vhost-upload'] option:selected");
+            var vhost_selected = vhost_upload.index() > 0;
+            var vhost_name = null;
+            if (vhost_selected) {
+                vhost_name = vhost_upload.val();
+            }
+
+            // TODO check file size
             var file = form.file.files[0];
 
-            var reader = new FileReader();
-            reader.onload = function(evt) {
-                try {
-                    var jstr = evt.target.result;
-                    var json = JSON.parse(jstr);
-                } catch (e) {
-                    alert(e);
-                    return;
-                }
-
-                var vhost_upload = $("select[name='vhost-upload'] option:selected");
-                var idx = vhost_upload.index();
-                var vhost = (idx <= 0) ? "" : "/" + esc(vhost_upload.val());
-                var form_action = "api/definitions" + vhost + '?auth=' + get_cookie_value('auth');
-
-                var xhr = xmlHttpRequest();
-                var fd = new FormData();
-                fd.append('file', file);
-
-                xhr.open('POST', form_action, true);
-                xhr.onreadystatechange = function() {
-                    if (xhr.readyState == 4) {
-                        alert(xhr.responseText); // TODO handle response.
-                    }
-                };
-
-                xhr.send(fd);
-            };
-
-            reader.readAsText(file);
-
+            // with_req(method, path, body, fun)
+            with_req('GET', '/vhost-limits', null, function (resp) {
+                submit_import_vhost_limits(resp, vhost_name, file);
+            });
             /*
-            form.submit();
             window.location.replace("../../#/import-succeeded");
             */
-
-            return false;
-        } else {
-            return false;
         }
-    } else {
-        return false;
     }
+    return false;
 };
 
 function postprocess() {
@@ -1107,14 +1178,14 @@ function has_auth_cookie_value() {
 
 function auth_header() {
     if(has_auth_cookie_value()) {
-        return "Basic " + decodeURIComponent(get_cookie_value('auth'));    
+        return "Basic " + decodeURIComponent(get_cookie_value('auth'));
     } else {
         return null;
     }
 }
 
 function with_req(method, path, body, fun) {
-    if(!has_auth_cookie_value()) {
+    if (!has_auth_cookie_value()) {
         // navigate to the login form
         location.reload();
         return;
