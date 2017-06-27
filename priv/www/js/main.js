@@ -520,21 +520,16 @@ function show_popup(type, text, mode) {
 }
 
 function submit_import_file(vhost_name, file) {
-    var vhost_part = vhost_name ? '' : '/' + esc(vhost_name);
-    var form_action = "api/definitions" + vhost_part + '?auth=' + get_cookie_value('auth');
-
-    var xhr = xmlHttpRequest();
+    var vhost_part = '';
+    if (vhost_name) {
+        vhost_part = '/' + esc(vhost_name);
+    }
+    var form_action = "/definitions" + vhost_part + '?auth=' + get_cookie_value('auth');
     var fd = new FormData();
     fd.append('file', file);
-
-    xhr.open('POST', form_action, true);
-    xhr.onreadystatechange = function() {
-        if (xhr.readyState == 4) {
-            alert(xhr.responseText); // TODO handle response.
-        }
-    };
-
-    xhr.send(fd);
+    with_req('POST', form_action, fd, function(resp) {
+        alert(resp.responseText); // TODO handle response.
+    });
 }
 
 function submit_import_maybe_apply_vhost_limits(vhost_limits, vhost_name, file) {
