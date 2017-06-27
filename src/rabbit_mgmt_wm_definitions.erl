@@ -213,7 +213,7 @@ apply_defs(Body, Username, SuccessFun, ErrorFun, VHost) ->
 format(#amqp_error{name = Name, explanation = Explanation}) ->
     rabbit_data_coercion:to_binary(rabbit_misc:format("~s: ~s", [Name, Explanation]));
 format(E) ->
-    rabbit_data_coercion:to_binary(rabbit_misc:format("~p", [E])).
+    rabbit_data_coercion:to_binary(rabbit_misc:format("~4096p", [E])).
 
 get_all_parts(ReqData) ->
     get_all_parts(ReqData, []).
@@ -431,20 +431,31 @@ rv(VHost, Type, Name, Props) ->
 
 %%--------------------------------------------------------------------
 
-validate_limits(All, VHost) ->
-
 validate_limits(All) ->
     Queues = maps:get(queues, All),
     {ok, VHostMap} = count_by_key(<<"vhost">>, Queues),
     maps:fold(fun validate_vhost_limit/3, ok, VHostMap).
 
+validate_limits(All, VHost) ->
+    Queues = maps:get(queues, All),
+    Count = length(Queues),
+    validate_vhost_limit(VHost, Count, ok).
+
 validate_vhost_limit(VHost, Count, ok) ->
-    {ok, Limit} = rabbit_vhost_limit:queue_limit(VHost),
-    validate_vhost_limit(VHost, Count, Limit);
-validate_vhost_limit(VHost, Count, Limit) when is_integer(Count), is_integer(Limit), Count > Limit  ->
-    Err = rabbit_misc:format("Importing ~p queues for VHost ~p would exceed configured limit ~p", [Count, VHost, Limit]),
-    exit(Err);
-validate_vhost_limit(_VHost, Count, Limit) when is_integer(Count), is_integer(Limit), Count =< Limit  ->
+    validate_vhost_queue_limit(VHost, Count, rabbit_vhost_limit:queue_limit(VHost)).
+
+validate_vhost_queue_limit(_VHost, _Count, undefined) ->
+    % Note: no limit for VHost is defined
+    ok;
+validate_vhost_queue_limit(VHost, Count, {ok, Limit}) ->
+    % Note: limit of Limit for VHost is defined
+    enforce_vhost_limit(VHost, Count, Limit).
+
+enforce_vhost_limit(VHost, Count, Limit) when is_integer(Count), is_integer(Limit), Count > Limit  ->
+    ErrMsg = rabbit_misc:format("Attempt to add ~B queues to vhost '~s', but limit is ~B", [Count, VHost, Limit]),
+    ErrInfo = [{vhost, VHost}, {count, Count}, {limit, Limit}, {errmsg, ErrMsg}],
+    exit({vhost_limit_exceeded, ErrInfo});
+enforce_vhost_limit(_VHost, Count, Limit) when is_integer(Count), is_integer(Limit), Count =< Limit  ->
     ok.
 
 count_by_key(Key, Maps) ->
