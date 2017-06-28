@@ -212,6 +212,8 @@ apply_defs(Body, Username, SuccessFun, ErrorFun, VHost) ->
 
 format(#amqp_error{name = Name, explanation = Explanation}) ->
     rabbit_data_coercion:to_binary(rabbit_misc:format("~s: ~s", [Name, Explanation]));
+format({no_such_vhost, undefined}) ->
+    rabbit_data_coercion:to_binary("Please provide a virtual host.");
 format({vhost_limit_exceeded, ErrMsg}) ->
     rabbit_data_coercion:to_binary(ErrMsg);
 format(E) ->
@@ -434,14 +436,20 @@ rv(VHost, Type, Name, Props) ->
 %%--------------------------------------------------------------------
 
 validate_limits(All) ->
-    Queues = maps:get(queues, All),
-    {ok, VHostMap} = count_by_key(<<"vhost">>, Queues),
-    maps:fold(fun validate_vhost_limit/3, ok, VHostMap).
+    case maps:get(queues, All, undefined) of
+        undefined -> ok;
+        Queues ->
+            {ok, VHostMap} = count_by_key(<<"vhost">>, Queues),
+            maps:fold(fun validate_vhost_limit/3, ok, VHostMap)
+    end.
 
 validate_limits(All, VHost) ->
-    Queues = maps:get(queues, All),
-    Count = length(Queues),
-    validate_vhost_limit(VHost, Count, ok).
+    case maps:get(queues, All, undefined) of
+        undefined -> ok;
+        Queues ->
+            Count = length(Queues),
+            validate_vhost_limit(VHost, Count, ok)
+    end.
 
 validate_vhost_limit(VHost, Count, ok) ->
     validate_vhost_queue_limit(VHost, Count, rabbit_vhost_limit:would_exceed_queue_limit(Count, VHost)).
@@ -460,8 +468,12 @@ count_by_key(Key, Maps) ->
 count_by_key(_Key, [], AccMap) ->
     {ok, AccMap};
 count_by_key(Key, [Map|Rest], AccMap0) ->
-    CKey = maps:get(Key, Map),
-    Count0 = maps:get(CKey, AccMap0, 0),
-    Count1 = Count0 + 1,
-    AccMap1 = maps:put(CKey, Count1, AccMap0),
-    count_by_key(Key, Rest, AccMap1).
+    case maps:get(Key, Map, undefined) of
+        undefined ->
+            count_by_key(Key, Rest, AccMap0);
+        CKey ->
+            Count0 = maps:get(CKey, AccMap0, 0),
+            Count1 = Count0 + 1,
+            AccMap1 = maps:put(CKey, Count1, AccMap0),
+            count_by_key(Key, Rest, AccMap1)
+    end.
