@@ -532,6 +532,14 @@ function submit_import_file(vhost_name, file) {
     });
 }
 
+function submit_import_limit_exceeded(vhost_name, vhost_limit) {
+    var errmsg = 'Adding ' + queue_count +
+                 ' queue(s) to virtual host "' + vhost_name +
+                 '" would exceed the limit of ' + vhost_limit +
+                 ' queue(s).\n\nImport aborted!';
+    show_popup('warn', fmt_escape_html(errmsg));
+}
+
 function submit_import_apply_vhost_limits(vh_map, vhost_limits, vhost_name, file) {
     var reader = new FileReader();
     reader.onload = function(evt) {
@@ -550,11 +558,7 @@ function submit_import_apply_vhost_limits(vh_map, vhost_limits, vhost_name, file
                 var vh_limit = vh_map[vhost_name]
                 var queue_count = json.queues.length;
                 if (queue_count > vh_limit) {
-                    var errmsg = 'Adding ' + queue_count +
-                                 ' queue(s) to virtual host "' + vhost_name +
-                                 '" would exceed the limit of ' + vh_limit +
-                                 ' queue(s).\n\nImport aborted!';
-                    show_popup('warn', fmt_escape_html(errmsg));
+                    submit_import_limit_exceeded(vhost_name, vh_limit);
                     error = true;
                 }
             }
@@ -577,11 +581,7 @@ function submit_import_apply_vhost_limits(vh_map, vhost_limits, vhost_name, file
                         var vh_limit = vh_map[vhost];
                         var queue_count = q_map[vhost];
                         if (queue_count > vh_limit) {
-                            var errmsg = 'Adding ' + queue_count +
-                                        ' queue(s) to virtual host "' + vhost +
-                                        '" would exceed the limit of ' + vh_limit +
-                                        ' queue(s).\n\nImport aborted!';
-                            show_popup('warn', fmt_escape_html(errmsg));
+                            submit_import_limit_exceeded(vhost, vh_limit);
                             error = true;
                             break;
                         }
@@ -631,7 +631,7 @@ function submit_import(form) {
     if (form.file.value) {
         var confirm_upload = confirm('Are you sure you want to import a definitions file? Some entities (vhosts, users, queues, etc) may be overwritten!');
         if (confirm_upload === true) {
-            var file = form.file.files[0]; // FUTURE: limit upload file size
+            var file = form.file.files[0]; // FUTURE: limit upload file size (?)
             var vhost_upload = $("select[name='vhost-upload'] option:selected");
             var vhost_selected = vhost_upload.index() > 0;
             var vhost_name = null;

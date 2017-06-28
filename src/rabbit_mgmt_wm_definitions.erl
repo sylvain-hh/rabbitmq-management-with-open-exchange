@@ -222,7 +222,7 @@ format({no_such_vhost, VHost}) ->
 format({vhost_limit_exceeded, ErrMsg}) ->
     rabbit_data_coercion:to_binary(ErrMsg);
 format(E) ->
-    rabbit_data_coercion:to_binary(rabbit_misc:format("~4096p", [E])).
+    rabbit_data_coercion:to_binary(rabbit_misc:format("~p", [E])).
 
 get_all_parts(ReqData) ->
     get_all_parts(ReqData, []).
