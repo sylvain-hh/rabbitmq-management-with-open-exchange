@@ -553,7 +553,7 @@ function submit_import_apply_vhost_limits(vh_map, vhost_limits, vhost_name, file
                     var errmsg = 'Adding ' + queue_count +
                                  ' queue(s) to virtual host "' + vhost_name +
                                  '" would exceed the limit of ' + vh_limit +
-                                 ' queue(s). Import aborted!';
+                                 ' queue(s).\n\nImport aborted!';
                     show_popup('warn', fmt_escape_html(errmsg));
                     error = true;
                 }
@@ -580,7 +580,7 @@ function submit_import_apply_vhost_limits(vh_map, vhost_limits, vhost_name, file
                             var errmsg = 'Adding ' + queue_count +
                                         ' queue(s) to virtual host "' + vhost +
                                         '" would exceed the limit of ' + vh_limit +
-                                        ' queue(s). Import aborted!';
+                                        ' queue(s).\n\nImport aborted!';
                             show_popup('warn', fmt_escape_html(errmsg));
                             error = true;
                             break;

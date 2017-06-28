@@ -213,7 +213,12 @@ apply_defs(Body, Username, SuccessFun, ErrorFun, VHost) ->
 format(#amqp_error{name = Name, explanation = Explanation}) ->
     rabbit_data_coercion:to_binary(rabbit_misc:format("~s: ~s", [Name, Explanation]));
 format({no_such_vhost, undefined}) ->
-    rabbit_data_coercion:to_binary("Please provide a virtual host.");
+    rabbit_data_coercion:to_binary(
+      "Virtual host is not specified in definitions file nor via management interface.");
+format({no_such_vhost, VHost}) ->
+    rabbit_data_coercion:to_binary(
+      rabbit_misc:format("Please create virtual host \"~s\" prior to importing definitions.",
+                         [VHost]));
 format({vhost_limit_exceeded, ErrMsg}) ->
     rabbit_data_coercion:to_binary(ErrMsg);
 format(E) ->
@@ -458,8 +463,9 @@ validate_vhost_queue_limit(_VHost, _Count, false) ->
     % Note: would not exceed queue limit
     ok;
 validate_vhost_queue_limit(VHost, Count, {true, Limit, QueueCount}) ->
-    ErrInfo = [Count, VHost, QueueCount, Limit],
-    ErrMsg = rabbit_misc:format("Adding ~B queues to virtual host '~s' would exceed the limit of ~B queues.~nThis virtual host has ~B queues defined.", ErrInfo),
+    ErrFmt = "Adding ~B queue(s) to virtual host \"~s\" would exceed the limit of ~B queue(s).~n~nThis virtual host currently has ~B queue(s) defined.~n~nImport aborted!",
+    ErrInfo = [Count, VHost, Limit, QueueCount],
+    ErrMsg = rabbit_misc:format(ErrFmt, ErrInfo),
     exit({vhost_limit_exceeded, ErrMsg}).
 
 count_by_key(Key, Maps) ->
