@@ -532,12 +532,97 @@ function submit_import_file(vhost_name, file) {
     });
 }
 
-function submit_import_limit_exceeded(vhost_name, vhost_limit) {
+function submit_import_limit_exceeded(vhost_name, vhost_limit, current_queue_count) {
     var errmsg = 'Adding ' + queue_count +
                  ' queue(s) to virtual host "' + vhost_name +
                  '" would exceed the limit of ' + vhost_limit +
-                 ' queue(s).\n\nImport aborted!';
+                 ' queue(s).\n\nThis virtual host currently has ' + current_queue_count +
+                 ' queue(s) defined.\n\nImport aborted!';
     show_popup('warn', fmt_escape_html(errmsg));
+}
+
+function submit_import_apply_limits_for_vhost(vh_map, json, vhost_name, file) {
+    if (json.hasOwnProperty('queues')) {
+        var path = 'queues/' + esc(vhost_name);
+        with_req('GET', path, null, function (resp) {
+            var queues = jQuery.parseJSON(resp.responseText);
+            var queue_map = {};
+            var current_queue_count = 0;
+            for (var i = 0; i < queues.length; i++) {
+                var q = queues[i];
+                if (q.vhost === vhost_name) {
+                    queue_map[q.name] = 1;
+                    current_queue_count++;
+                }
+            }
+            var new_queue_count = 0;
+            for (var i = 0; i < json.queues.length; i++) {
+                var q = json.queues[i];
+                if (!(q.name in queue_map)) {
+                    new_queue_count++;
+                }
+            }
+            var vh_limit = vh_map[vhost_name]
+            if ((new_queue_count + current_queue_count) > vh_limit) {
+                submit_import_limit_exceeded(vhost_name, vh_limit, current_queue_count);
+            } else {
+                submit_import_file(vhost_name, file);
+            }
+        });
+    }
+}
+
+function submit_import_retrieve_queues(vhost_names, callback) {
+    var funcs = [];
+    vhost_names.forEach(function(vhost_name) {
+        var f = function(cb) {
+            var path = 'queues/' + esc(vhost_name);
+            with_req('GET', path, null, function (resp) {
+                cb(null, resp);
+            });
+        };
+        funcs.push(f);
+    });
+    async.parallel(funcs, function(err, rslts) {
+        callback(err, rslts);
+    });
+}
+
+function submit_import_apply_limits_for_all_vhosts(vh_map, json, file) {
+    var error = false;
+    if (json.hasOwnProperty('queues')) {
+        var q_map = {};
+        for (var i = 0; i < json.queues.length; i++) {
+            var queue = json.queues[i];
+            var queue_vhost = queue.vhost;
+            if (queue_vhost in q_map) {
+                q_map[queue_vhost]++;
+            } else {
+                q_map[queue_vhost] = 1;
+            }
+        }
+        submit_import_retrieve_queues(Object.keys(q_map), function (err, rslts) {
+            console.log(rslts);
+            /*
+            var vhosts = Object.keys(vh_map);
+            for (var i = 0; i < vhosts.length; i++) {
+                var vhost_name = vhosts[i];
+                if (q_map.hasOwnProperty(vhost_name)) {
+                    var vh_limit = vh_map[vhost_name];
+                    var queue_count = q_map[vhost_name];
+                    if (queue_count > vh_limit) {
+                        submit_import_limit_exceeded(vhost_name, vh_limit, current_queue_count);
+                        error = true;
+                        break;
+                    }
+                }
+            }
+            if (!error) {
+                submit_import_file(vhost_name, file);
+            }
+            */
+        });
+    }
 }
 
 function submit_import_apply_vhost_limits(vh_map, vhost_limits, vhost_name, file) {
@@ -554,51 +639,15 @@ function submit_import_apply_vhost_limits(vh_map, vhost_limits, vhost_name, file
 
         var error = false;
         if (vhost_name && vh_map.hasOwnProperty(vhost_name)) {
-            if (json.hasOwnProperty('queues')) {
-                var vh_limit = vh_map[vhost_name]
-                var queue_count = json.queues.length;
-                if (queue_count > vh_limit) {
-                    submit_import_limit_exceeded(vhost_name, vh_limit);
-                    error = true;
-                }
-            }
+            error = submit_import_apply_limits_for_vhost(vh_map, json, vhost_name, file);
         } else {
-            if (json.hasOwnProperty('queues')) {
-                var q_map = {};
-                for (var i = 0; i < json.queues.length; i++) {
-                    var queue = json.queues[i];
-                    var queue_vhost = queue.vhost;
-                    if (queue_vhost in q_map) {
-                        q_map[queue_vhost]++;
-                    } else {
-                        q_map[queue_vhost] = 1;
-                    }
-                }
-                var vhosts = Object.keys(vh_map);
-                for (var i = 0; i < vhosts.length; i++) {
-                    var vhost = vhosts[i];
-                    if (q_map.hasOwnProperty(vhost)) {
-                        var vh_limit = vh_map[vhost];
-                        var queue_count = q_map[vhost];
-                        if (queue_count > vh_limit) {
-                            submit_import_limit_exceeded(vhost, vh_limit);
-                            error = true;
-                            break;
-                        }
-                    }
-                }
-            }
-        }
-        if (!error) {
-            submit_import_file(vhost_name, file);
+            error = submit_import_apply_limits_for_all_vhosts(vh_map, json, file);
         }
     };
     reader.readAsText(file);
 }
 
 function submit_import_maybe_apply_vhost_limits(vhost_limits, vhost_name, file) {
-    // Note: this does not take current queue count into account. Server validation will
-    //       take current queue count into account
     var vh_map = {};
     for (var i = 0; i < vhost_limits.length; i++) {
         var vh_obj = vhost_limits[i];
@@ -1127,7 +1176,9 @@ function with_reqs(reqs, acc, fun) {
             acc[key] = jQuery.parseJSON(resp.responseText);
             var remainder = {};
             for (var k in reqs) {
-                if (k != key) remainder[k] = reqs[k];
+                if (k != key) {
+                    remainder[k] = reqs[k];
+                }
             }
             with_reqs(remainder, acc, fun);
         });
