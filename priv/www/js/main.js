@@ -532,100 +532,83 @@ function submit_import_file(vhost_name, file) {
     });
 }
 
-function submit_import_limit_exceeded(vhost_name, vhost_limit, current_queue_count) {
-    var errmsg = 'Adding ' + queue_count +
+function submit_import_limit_exceeded(vhost_name, vhost_max_queues, add_queue_count, current_queue_count) {
+    var errmsg = 'Adding ' + add_queue_count +
                  ' queue(s) to virtual host "' + vhost_name +
-                 '" would exceed the limit of ' + vhost_limit +
+                 '" would exceed the limit of ' + vhost_max_queues +
                  ' queue(s).\n\nThis virtual host currently has ' + current_queue_count +
                  ' queue(s) defined.\n\nImport aborted!';
     show_popup('warn', fmt_escape_html(errmsg));
 }
 
-function submit_import_apply_limits_for_vhost(vh_map, json, vhost_name, file) {
+function submit_import_apply_limits_for_vhost(vhost_limits_map, json, vhost_name, file) {
     if (json.hasOwnProperty('queues')) {
-        var path = 'queues/' + esc(vhost_name);
-        with_req('GET', path, null, function (resp) {
-            var queues = jQuery.parseJSON(resp.responseText);
-            var queue_map = {};
-            var current_queue_count = 0;
-            for (var i = 0; i < queues.length; i++) {
-                var q = queues[i];
-                if (q.vhost === vhost_name) {
-                    queue_map[q.name] = 1;
-                    current_queue_count++;
-                }
+        var vhost_limit = vhost_limits_map[vhost_name]
+        var vhost_queue_map = vhost_limit.queue_map;
+        var current_queue_count = vhost_limit.queue_count;
+        var vhost_max_queues = vhost_limit.max_queues;
+
+        var add_queue_count = 0;
+        for (var i = 0; i < json.queues.length; i++) {
+            var q = json.queues[i];
+            if (!(q.name in vhost_queue_map)) {
+                add_queue_count++;
             }
-            var new_queue_count = 0;
-            for (var i = 0; i < json.queues.length; i++) {
-                var q = json.queues[i];
-                if (!(q.name in queue_map)) {
-                    new_queue_count++;
-                }
-            }
-            var vh_limit = vh_map[vhost_name]
-            if ((new_queue_count + current_queue_count) > vh_limit) {
-                submit_import_limit_exceeded(vhost_name, vh_limit, current_queue_count);
-            } else {
-                submit_import_file(vhost_name, file);
-            }
-        });
+        }
+        if ((add_queue_count + current_queue_count) > vhost_max_queues) {
+            submit_import_limit_exceeded(vhost_name, vhost_max_queues,
+                add_queue_count, current_queue_count);
+        } else {
+            submit_import_file(vhost_name, file);
+        }
     }
 }
 
-function submit_import_retrieve_queues(vhost_names, callback) {
-    var funcs = [];
-    vhost_names.forEach(function(vhost_name) {
-        var f = function(cb) {
-            var path = 'queues/' + esc(vhost_name);
-            with_req('GET', path, null, function (resp) {
-                cb(null, resp);
-            });
-        };
-        funcs.push(f);
-    });
-    async.parallel(funcs, function(err, rslts) {
-        callback(err, rslts);
-    });
-}
-
-function submit_import_apply_limits_for_all_vhosts(vh_map, json, file) {
+function submit_import_apply_limits_for_all_vhosts(vhost_limits_map, json, file) {
     var error = false;
     if (json.hasOwnProperty('queues')) {
-        var q_map = {};
+        var queues_by_vhost = {};
         for (var i = 0; i < json.queues.length; i++) {
             var queue = json.queues[i];
             var queue_vhost = queue.vhost;
-            if (queue_vhost in q_map) {
-                q_map[queue_vhost]++;
-            } else {
-                q_map[queue_vhost] = 1;
-            }
-        }
-        submit_import_retrieve_queues(Object.keys(q_map), function (err, rslts) {
-            console.log(rslts);
-            /*
-            var vhosts = Object.keys(vh_map);
-            for (var i = 0; i < vhosts.length; i++) {
-                var vhost_name = vhosts[i];
-                if (q_map.hasOwnProperty(vhost_name)) {
-                    var vh_limit = vh_map[vhost_name];
-                    var queue_count = q_map[vhost_name];
-                    if (queue_count > vh_limit) {
-                        submit_import_limit_exceeded(vhost_name, vh_limit, current_queue_count);
-                        error = true;
-                        break;
+            var queue_name = queue.name;
+            var vhost_limit = vhost_limits_map[queue_vhost]
+            if (vhost_limit) {
+                // vhost_limit is only defined when a vhost has
+                // a max-queues limit value
+                var vhost_queue_map = vhost_limit.queue_map;
+                if (!(queue_name in vhost_queue_map)) {
+                    if (queue_vhost in queues_by_vhost) {
+                        queues_by_vhost[queue_vhost]++;
+                    } else {
+                        queues_by_vhost[queue_vhost] = 1;
                     }
                 }
             }
-            if (!error) {
-                submit_import_file(vhost_name, file);
+        }
+
+        var queue_vhosts = Object.keys(queues_by_vhost);
+        for (var i = 0; i < queue_vhosts.length; i++) {
+            var vhost_name = queue_vhosts[i];
+            var vhost_limit = vhost_limits_map[vhost_name]
+            var vhost_max_queues = vhost_limit.max_queues;
+            var add_queue_count = queues_by_vhost[vhost_name];
+            var current_queue_count = vhost_limit.queue_count;
+            if ((add_queue_count + current_queue_count) > vhost_max_queues) {
+                submit_import_limit_exceeded(vhost_name, vhost_max_queues,
+                    add_queue_count, current_queue_count);
+                error = true;
+                break;
             }
-            */
-        });
+        }
+
+        if (!error) {
+            submit_import_file(vhost_name, file);
+        }
     }
 }
 
-function submit_import_apply_vhost_limits(vh_map, vhost_limits, vhost_name, file) {
+function submit_import_apply_vhost_limits(vhost_limits_map, vhost_name, file) {
     var reader = new FileReader();
     reader.onload = function(evt) {
         var json = null;
@@ -637,33 +620,44 @@ function submit_import_apply_vhost_limits(vh_map, vhost_limits, vhost_name, file
             return;
         }
 
-        var error = false;
-        if (vhost_name && vh_map.hasOwnProperty(vhost_name)) {
-            error = submit_import_apply_limits_for_vhost(vh_map, json, vhost_name, file);
+        if (vhost_name && vhost_limits_map.hasOwnProperty(vhost_name)) {
+            submit_import_apply_limits_for_vhost(vhost_limits_map, json, vhost_name, file);
         } else {
-            error = submit_import_apply_limits_for_all_vhosts(vh_map, json, file);
+            submit_import_apply_limits_for_all_vhosts(vhost_limits_map, json, file);
         }
     };
     reader.readAsText(file);
 }
 
 function submit_import_maybe_apply_vhost_limits(vhost_limits, vhost_name, file) {
-    var vh_map = {};
+    var vhost_limits_map = {};
     for (var i = 0; i < vhost_limits.length; i++) {
         var vh_obj = vhost_limits[i];
         var vh_name = vh_obj.vhost;
         if (vh_obj.hasOwnProperty('value')) {
             var vh_val = vh_obj.value;
             if (vh_val.hasOwnProperty('max-queues')) {
-                vh_map[vh_name] = vh_val['max-queues'];
+                var max_queues_val = vh_val['max-queues'];
+
+                var queues = vh_obj['queues'];
+                var queue_map = queues.reduce(function(map, obj) {
+                    map[obj] = 1;
+                    return map;
+                }, {});
+
+                vhost_limits_map[vh_name] = {
+                    'queue_map': queue_map,
+                    'queue_count': queues.length,
+                    'max_queues': max_queues_val
+                };
             }
         }
     }
 
-    if (Object.keys(vh_map).length === 0) {
+    if (Object.keys(vhost_limits_map).length === 0) {
         submit_import_file(vhost_name, file);
     } else {
-        submit_import_apply_vhost_limits(vh_map, vhost_limits, vhost_name, file);
+        submit_import_apply_vhost_limits(vhost_limits_map, vhost_name, file);
     }
 }
 
@@ -687,7 +681,7 @@ function submit_import(form) {
             if (vhost_selected) {
                 vhost_name = vhost_upload.val();
             }
-            with_req('GET', '/vhost-limits', null, function (resp) {
+            with_req('GET', '/vhost-limits?queues=true', null, function (resp) {
                 submit_import_vhost_limits(resp, vhost_name, file);
             });
         }

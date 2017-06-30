@@ -53,19 +53,34 @@ resource_exists(ReqData, Context) ->
 to_json(ReqData, Context) ->
     rabbit_mgmt_util:reply_list(limits(ReqData, Context), [], ReqData, Context).
 
+%%--------------------------------------------------------------------
+%% Private helpers
+
 limits(ReqData, Context) ->
     case rabbit_mgmt_util:vhost(ReqData) of
         none ->
             User = Context#context.user,
             VisibleVhosts = rabbit_mgmt_util:list_visible_vhosts(User),
-            [ [{vhost, VHost}, {value, Value}]
-              || {VHost, Value} <- rabbit_vhost_limit:list(),
-                 lists:member(VHost, VisibleVhosts) ];
+            [build(include_queues(ReqData), VHost, Value) ||
+             {VHost, Value} <- rabbit_vhost_limit:list(),
+                 lists:member(VHost, VisibleVhosts)];
         VHost when is_binary(VHost) ->
             case rabbit_vhost_limit:list(VHost) of
                 []    -> [];
-                Value -> [[{vhost, VHost}, {value, Value}]]
+                Value -> [build(include_queues(ReqData), VHost, Value)]
             end
     end.
-%%--------------------------------------------------------------------
 
+build(true, VHost, Value) ->
+    [{vhost, VHost}, {value, Value}, {queues, queue_names(VHost)}];
+build(false, VHost, Value) ->
+    [{vhost, VHost}, {value, Value}].
+
+queue_names(VHost) ->
+    [Res#resource.name || #amqqueue{name = Res} <- rabbit_amqqueue:list(VHost)].
+
+include_queues(ReqData) ->
+    case cowboy_req:qs_val(<<"queues">>, ReqData) of
+        {<<"true">>, _} -> true;
+        _ -> false
+    end.

@@ -121,6 +121,7 @@ groups() ->
                                extensions_test,
                                cors_test,
                                vhost_limits_list_test,
+                               vhost_limits_list_queues_test,
                                vhost_limit_set_test,
                                rates_test
                               ]}
@@ -2309,17 +2310,16 @@ vhost_limits_list_test(Config) ->
     rabbit_ct_broker_helpers:add_vhost(Config, <<"limit_test_vhost_1">>),
 
     [] = http_get(Config, "/vhost-limits/limit_test_vhost_1", ?OK),
-    http_get(Config, "/vhost-limits/limit_test_vhost_2", ?NOT_FOUND),
 
+    http_get(Config, "/vhost-limits/limit_test_vhost_2", ?NOT_FOUND),
     rabbit_ct_broker_helpers:add_vhost(Config, <<"limit_test_vhost_2">>),
 
     [] = http_get(Config, "/vhost-limits/limit_test_vhost_2", ?OK),
 
-
-    Limits1 =  [#{vhost => <<"limit_test_vhost_1">>,
-                  value => #{'max-connections' => 100, 'max-queues' => 100}}],
-    Limits2 =  [#{vhost => <<"limit_test_vhost_2">>,
-		  value => #{'max-connections' => 200}}],
+    Limits1 = [#{vhost => <<"limit_test_vhost_1">>,
+                 value => #{'max-connections' => 100, 'max-queues' => 100}}],
+    Limits2 = [#{vhost => <<"limit_test_vhost_2">>,
+                 value => #{'max-connections' => 200}}],
 
     Expected = Limits1 ++ Limits2,
 
@@ -2357,6 +2357,18 @@ vhost_limits_list_test(Config) ->
     http_get(Config, "/vhost-limits/limit_test_vhost_1", Vhost2User, Vhost2User, ?NOT_AUTHORISED),
     Limits2 = http_get(Config, "/vhost-limits/limit_test_vhost_2", Vhost2User, Vhost2User, ?OK).
 
+vhost_limits_list_queues_test(Config) ->
+    VHostQueues = <<"/">>,
+    http_put(Config, "/queues/%2f/vhost_limits_list_queues_test", [{durable, true}], {group, '2xx'}),
+    LimitsQueues = [#{vhost => VHostQueues,
+                      value => #{'max-queues' => 10},
+                      queues => [<<"vhost_limits_list_queues_test">>]}],
+    ok = rabbit_ct_broker_helpers:set_parameter(Config, 0, VHostQueues,
+                                                <<"vhost-limits">>, <<"limits">>,
+                                                [{<<"max-queues">>, 10}]),
+    LimitsQueues = http_get(Config, "/vhost-limits/%2f?queues=true", ?OK),
+    http_delete(Config, "/queues/%2f/vhost_limits_list_queues_test", ?NO_CONTENT).
+
 vhost_limit_set_test(Config) ->
     [] = http_get(Config, "/vhost-limits", ?OK),
     rabbit_ct_broker_helpers:add_vhost(Config, <<"limit_test_vhost_1">>),
@@ -2364,7 +2376,6 @@ vhost_limit_set_test(Config) ->
 
     %% Set a limit
     http_put(Config, "/vhost-limits/limit_test_vhost_1/max-queues", [{value, 100}], ?NO_CONTENT),
-
 
     Limits_Queues =  [#{vhost => <<"limit_test_vhost_1">>,
         value => #{'max-queues' => 100}}],
