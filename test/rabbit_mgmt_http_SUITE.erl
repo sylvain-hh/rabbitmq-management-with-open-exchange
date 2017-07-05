@@ -1032,9 +1032,15 @@ defs_v(Config, Key, URI, CreateMethod, Args) ->
     http_put(Config, "/vhosts/test", none, {group, '2xx'}),
     PermArgs = [{configure, <<".*">>}, {write, <<".*">>}, {read, <<".*">>}],
     http_put(Config, "/permissions/test/guest", PermArgs, {group, '2xx'}),
-    defs(Config, Key, Rep1(URI, "test"), CreateMethod, ReplaceVHostInArgs(Args, <<"test">>),
-         fun(URI2) -> http_delete(Config, URI2, {group, '2xx'}),
-                      http_delete(Config, "/vhosts/test", {group, '2xx'}) end).
+    DeleteFun0 = fun(URI2) ->
+                     http_delete(Config, URI2, {group, '2xx'})
+                 end,
+    DeleteFun1 = fun(_) ->
+                    http_delete(Config, "/vhosts/test", {group, '2xx'})
+                 end,
+    defs(Config, Key, Rep1(URI, "test"),
+         CreateMethod, ReplaceVHostInArgs(Args, <<"test">>),
+         DeleteFun0, DeleteFun1).
 
 create(Config, CreateMethod, URI, Args) ->
     case CreateMethod of
@@ -1048,6 +1054,9 @@ create(Config, CreateMethod, URI, Args) ->
     end.
 
 defs(Config, Key, URI, CreateMethod, Args, DeleteFun) ->
+    defs(Config, Key, URI, CreateMethod, Args, DeleteFun, DeleteFun).
+
+defs(Config, Key, URI, CreateMethod, Args, DeleteFun0, DeleteFun1) ->
     %% Create the item
     URI2 = create(Config, CreateMethod, URI, Args),
     %% Make sure it ends up in definitions
@@ -1055,14 +1064,14 @@ defs(Config, Key, URI, CreateMethod, Args, DeleteFun) ->
     true = lists:any(fun(I) -> test_item(Args, I) end, maps:get(Key, Definitions)),
 
     %% Delete it
-    DeleteFun(URI2),
+    DeleteFun0(URI2),
 
     %% Post the definitions back, it should get recreated in correct form
     http_post(Config, "/definitions", Definitions, {group, '2xx'}),
     assert_item(Args, http_get(Config, URI2, ?OK)),
 
     %% And delete it again
-    DeleteFun(URI2),
+    DeleteFun1(URI2),
 
     passed.
 
@@ -2021,6 +2030,7 @@ publish_fail_test(Config) ->
      || BadProp <- [{priority,   <<"really high">>},
                     {timestamp,  <<"recently">>},
                     {expiration, 1234}]],
+    http_delete(Config, "/queues/%2f/publish_fail_test", {group, '2xx'}),
     http_delete(Config, "/users/myuser", {group, '2xx'}),
     passed.
 
@@ -2310,8 +2320,8 @@ vhost_limits_list_test(Config) ->
     rabbit_ct_broker_helpers:add_vhost(Config, <<"limit_test_vhost_1">>),
 
     [] = http_get(Config, "/vhost-limits/limit_test_vhost_1", ?OK),
-
     http_get(Config, "/vhost-limits/limit_test_vhost_2", ?NOT_FOUND),
+
     rabbit_ct_broker_helpers:add_vhost(Config, <<"limit_test_vhost_2">>),
 
     [] = http_get(Config, "/vhost-limits/limit_test_vhost_2", ?OK),
@@ -2358,6 +2368,7 @@ vhost_limits_list_test(Config) ->
     Limits2 = http_get(Config, "/vhost-limits/limit_test_vhost_2", Vhost2User, Vhost2User, ?OK).
 
 vhost_limits_list_queues_test(Config) ->
+    [] = http_get(Config, "/vhost-limits", ?OK),
     VHostQueues = <<"/">>,
     http_put(Config, "/queues/%2f/vhost_limits_list_queues_test", [{durable, true}], {group, '2xx'}),
     LimitsQueues = [#{vhost => VHostQueues,
@@ -2367,7 +2378,10 @@ vhost_limits_list_queues_test(Config) ->
                                                 <<"vhost-limits">>, <<"limits">>,
                                                 [{<<"max-queues">>, 10}]),
     LimitsQueues = http_get(Config, "/vhost-limits/%2f?queues=true", ?OK),
-    http_delete(Config, "/queues/%2f/vhost_limits_list_queues_test", ?NO_CONTENT).
+    http_delete(Config, "/queues/%2f/vhost_limits_list_queues_test", ?NO_CONTENT),
+    ok = rabbit_ct_broker_helpers:clear_parameter(Config, 0, VHostQueues,
+                                                  <<"vhost-limits">>, <<"limits">>),
+    [] = http_get(Config, "/vhost-limits", ?OK).
 
 vhost_limit_set_test(Config) ->
     [] = http_get(Config, "/vhost-limits", ?OK),
@@ -2376,6 +2390,7 @@ vhost_limit_set_test(Config) ->
 
     %% Set a limit
     http_put(Config, "/vhost-limits/limit_test_vhost_1/max-queues", [{value, 100}], ?NO_CONTENT),
+
 
     Limits_Queues =  [#{vhost => <<"limit_test_vhost_1">>,
         value => #{'max-queues' => 100}}],

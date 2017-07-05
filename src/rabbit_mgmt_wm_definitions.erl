@@ -444,8 +444,7 @@ validate_limits(All) ->
     case maps:get(queues, All, undefined) of
         undefined -> ok;
         Queues0 ->
-            Queues1 = filter_out_existing_queues(Queues0),
-            {ok, VHostMap} = count_by_key(<<"vhost">>, Queues1),
+            {ok, VHostMap} = filter_out_existing_queues(Queues0),
             maps:fold(fun validate_vhost_limit/3, ok, VHostMap)
     end.
 
@@ -459,7 +458,26 @@ validate_limits(All, VHost) ->
     end.
 
 filter_out_existing_queues(Queues) ->
-    Queues.
+    QData = [ build_queue_data(Q) || Q <- Queues ],
+    build_filtered_map(QData, maps:new()).
+
+build_queue_data(Q) ->
+    VHost = maps:get(<<"vhost">>, Q, undefined),
+    Rec = rv(VHost, queue, <<"name">>, Q),
+    {Rec, VHost}.
+
+build_filtered_map([], AccMap) ->
+    {ok, AccMap};
+build_filtered_map([{Rec, VHost}|Rest], AccMap0) ->
+    case rabbit_amqqueue:lookup(Rec) of
+        {error, not_found} ->
+            Count0 = maps:get(VHost, AccMap0, 0),
+            Count1 = Count0 + 1,
+            AccMap1 = maps:put(VHost, Count1, AccMap0),
+            build_filtered_map(Rest, AccMap1);
+        {ok, _} ->
+            build_filtered_map(Rest, AccMap0)
+    end.
 
 filter_out_existing_queues(VHost, Queues) ->
     Recs = [ rv(VHost, queue, <<"name">>, Q) || Q <- Queues ],
@@ -487,19 +505,3 @@ validate_vhost_queue_limit(VHost, AddCount, {true, Limit, QueueCount}) ->
     ErrInfo = [AddCount, VHost, Limit, QueueCount],
     ErrMsg = rabbit_misc:format(ErrFmt, ErrInfo),
     exit({vhost_limit_exceeded, ErrMsg}).
-
-count_by_key(Key, Maps) ->
-    count_by_key(Key, Maps, maps:new()).
-
-count_by_key(_Key, [], AccMap) ->
-    {ok, AccMap};
-count_by_key(Key, [Map|Rest], AccMap0) ->
-    case maps:get(Key, Map, undefined) of
-        undefined ->
-            count_by_key(Key, Rest, AccMap0);
-        CKey ->
-            Count0 = maps:get(CKey, AccMap0, 0),
-            Count1 = Count0 + 1,
-            AccMap1 = maps:put(CKey, Count1, AccMap0),
-            count_by_key(Key, Rest, AccMap1)
-    end.

@@ -691,6 +691,7 @@ function submit_import(form) {
     return false;
 };
 
+
 function postprocess() {
     $('form.confirm-queue').submit(function() {
         return confirm("Are you sure? The queue is going to be deleted. " +
@@ -1169,15 +1170,13 @@ function with_reqs(reqs, acc, fun) {
     if (keys(reqs).length > 0) {
         var key = keys(reqs)[0];
         with_req('GET', reqs[key], null, function(resp) {
-            acc[key] = jQuery.parseJSON(resp.responseText);
-            var remainder = {};
-            for (var k in reqs) {
-                if (k != key) {
-                    remainder[k] = reqs[k];
+                acc[key] = jQuery.parseJSON(resp.responseText);
+                var remainder = {};
+                for (var k in reqs) {
+                    if (k != key) remainder[k] = reqs[k];
                 }
-            }
-            with_reqs(remainder, acc, fun);
-        });
+                with_reqs(remainder, acc, fun);
+            });
     }
     else {
         fun(acc);
@@ -1237,7 +1236,7 @@ function auth_header() {
 }
 
 function with_req(method, path, body, fun) {
-    if (!has_auth_cookie_value()) {
+    if(!has_auth_cookie_value()) {
         // navigate to the login form
         location.reload();
         return;
@@ -1245,7 +1244,7 @@ function with_req(method, path, body, fun) {
 
     var json;
     var req = xmlHttpRequest();
-    req.open(method, 'api' + path, true);
+    req.open(method, 'api' + path, true );
     req.setRequestHeader('authorization', auth_header());
     req.setRequestHeader('x-vhost', current_vhost);
     req.onreadystatechange = function () {
@@ -1340,14 +1339,10 @@ function check_bad_response(req, full_page_404) {
     }
     else if (req.status >= 400 && req.status <= 404) {
         var reason = JSON.parse(req.responseText).reason;
-        if (typeof(reason) != 'string') {
-            reason = JSON.stringify(reason);
-        }
+        if (typeof(reason) != 'string') reason = JSON.stringify(reason);
 
         var error = JSON.parse(req.responseText).error;
-        if (typeof(error) != 'string') {
-            error = JSON.stringify(error);
-        }
+        if (typeof(error) != 'string') error = JSON.stringify(error);
 
         if (error == 'bad_request' || error == 'not_found' || error == 'not_authorised') {
             show_popup('warn', fmt_escape_html(reason));
