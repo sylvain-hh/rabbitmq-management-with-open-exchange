@@ -555,7 +555,8 @@ function submit_import_apply_limits_for_vhost(vhost_limits_map, json, vhost_name
                 add_queue_count++;
             }
         }
-        if ((add_queue_count + current_queue_count) > vhost_max_queues) {
+        if ((add_queue_count > 0) &&
+            ((add_queue_count + current_queue_count) > vhost_max_queues)) {
             submit_import_limit_exceeded(vhost_name, vhost_max_queues,
                 add_queue_count, current_queue_count);
         } else {
@@ -594,7 +595,8 @@ function submit_import_apply_limits_for_all_vhosts(vhost_limits_map, json, file)
             var vhost_max_queues = vhost_limit.max_queues;
             var add_queue_count = queues_by_vhost[vhost_name];
             var current_queue_count = vhost_limit.queue_count;
-            if ((add_queue_count + current_queue_count) > vhost_max_queues) {
+            if ((add_queue_count > 0) &&
+                ((add_queue_count + current_queue_count) > vhost_max_queues)) {
                 submit_import_limit_exceeded(vhost_name, vhost_max_queues,
                     add_queue_count, current_queue_count);
                 error = true;

@@ -443,28 +443,48 @@ rv(VHost, Type, Name, Props) ->
 validate_limits(All) ->
     case maps:get(queues, All, undefined) of
         undefined -> ok;
-        Queues ->
-            {ok, VHostMap} = count_by_key(<<"vhost">>, Queues),
+        Queues0 ->
+            Queues1 = filter_out_existing_queues(Queues0),
+            {ok, VHostMap} = count_by_key(<<"vhost">>, Queues1),
             maps:fold(fun validate_vhost_limit/3, ok, VHostMap)
     end.
 
 validate_limits(All, VHost) ->
     case maps:get(queues, All, undefined) of
         undefined -> ok;
-        Queues ->
-            Count = length(Queues),
-            validate_vhost_limit(VHost, Count, ok)
+        Queues0 ->
+            Queues1 = filter_out_existing_queues(VHost, Queues0),
+            AddCount = length(Queues1),
+            validate_vhost_limit(VHost, AddCount, ok)
     end.
 
-validate_vhost_limit(VHost, Count, ok) ->
-    validate_vhost_queue_limit(VHost, Count, rabbit_vhost_limit:would_exceed_queue_limit(Count, VHost)).
+filter_out_existing_queues(Queues) ->
+    Queues.
 
-validate_vhost_queue_limit(_VHost, _Count, false) ->
+filter_out_existing_queues(VHost, Queues) ->
+    Recs = [ rv(VHost, queue, <<"name">>, Q) || Q <- Queues ],
+    Pred = fun(Rec) ->
+                   case rabbit_amqqueue:lookup(Rec) of
+                       {ok, _} -> false;
+                       {error, not_found} -> true
+                   end
+           end,
+    lists:filter(Pred, Recs).
+
+validate_vhost_limit(VHost, AddCount, ok) ->
+    WouldExceed = rabbit_vhost_limit:would_exceed_queue_limit(AddCount, VHost),
+    validate_vhost_queue_limit(VHost, AddCount, WouldExceed).
+
+validate_vhost_queue_limit(_VHost, 0, _) ->
+    % Note: not adding any new queues so the upload
+    % must be update-only
+    ok;
+validate_vhost_queue_limit(_VHost, _AddCount, false) ->
     % Note: would not exceed queue limit
     ok;
-validate_vhost_queue_limit(VHost, Count, {true, Limit, QueueCount}) ->
+validate_vhost_queue_limit(VHost, AddCount, {true, Limit, QueueCount}) ->
     ErrFmt = "Adding ~B queue(s) to virtual host \"~s\" would exceed the limit of ~B queue(s).~n~nThis virtual host currently has ~B queue(s) defined.~n~nImport aborted!",
-    ErrInfo = [Count, VHost, Limit, QueueCount],
+    ErrInfo = [AddCount, VHost, Limit, QueueCount],
     ErrMsg = rabbit_misc:format(ErrFmt, ErrInfo),
     exit({vhost_limit_exceeded, ErrMsg}).
 
