@@ -663,7 +663,7 @@ function submit_import_vhost_limits(resp, vhost_name, file_json, file) {
     }
 }
 
-function submit_import_maybe_create_vhosts(vhost_name, file_json, file) {
+function submit_import_maybe_create_vhosts(vhost_name, vhost_map, file_json, file) {
     function next_step() {
         with_req('GET', '/vhost-limits?queues=true', null, function (limits_resp) {
             submit_import_vhost_limits(limits_resp, vhost_name, file_json, file);
@@ -674,9 +674,8 @@ function submit_import_maybe_create_vhosts(vhost_name, file_json, file) {
         if (vhost_map.hasOwnProperty(vhost_name)) {
             next_step();
         } else {
-            error = true;
             var errmsg = 'Unexpected error! Virtual host "' + vhost_name +
-                            '" should have been returned via API call to api/vhosts.';
+                         '" should have been returned via API call to api/vhosts.';
             show_popup('warn', fmt_escape_html(errmsg));
         }
     } else {
@@ -708,6 +707,10 @@ function submit_import_maybe_create_vhosts(vhost_name, file_json, file) {
             } else {
                 next_step();
             }
+        } else {
+            var errmsg = 'Virtual host is not specified in definitions ' +
+                         'file nor via management interface.';
+            show_popup('warn', fmt_escape_html(errmsg));
         }
     }
 }
@@ -735,7 +738,7 @@ function submit_import_vhosts(resp, vhost_name, file) {
             show_popup('warn', fmt_escape_html(e));
             return;
         }
-        submit_import_maybe_create_vhosts(vhost_name, file_json, file);
+        submit_import_maybe_create_vhosts(vhost_name, vhost_map, file_json, file);
     };
     reader.readAsText(file);
 }
