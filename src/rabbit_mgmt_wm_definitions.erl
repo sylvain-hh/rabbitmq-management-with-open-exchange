@@ -170,7 +170,6 @@ apply_defs(Body, Username, SuccessFun, ErrorFun) ->
         {ok, _, All} ->
             Version = maps:get(rabbit_version, All, undefined),
             try
-                validate_limits(All),
                 for_all(users,              Username, All,
                         fun(User, _Username) ->
                                 rabbit_mgmt_wm_user:put_user(
@@ -179,6 +178,7 @@ apply_defs(Body, Username, SuccessFun, ErrorFun) ->
                                   Username)
                         end),
                 for_all(vhosts,             Username, All, fun add_vhost/2),
+                validate_limits(All),
                 for_all(permissions,        Username, All, fun add_permission/2),
                 for_all(topic_permissions,  Username, All, fun add_topic_permission/2),
                 for_all(parameters,         Username, All, fun add_parameter/2),

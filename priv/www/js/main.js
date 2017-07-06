@@ -541,16 +541,16 @@ function submit_import_limit_exceeded(vhost_name, vhost_max_queues, add_queue_co
     show_popup('warn', fmt_escape_html(errmsg));
 }
 
-function submit_import_apply_limits_for_vhost(vhost_limits_map, json, vhost_name, file) {
-    if (json.hasOwnProperty('queues')) {
+function submit_import_apply_limits_for_vhost(vhost_limits_map, vhost_name, file_json, file) {
+    if (file_json.hasOwnProperty('queues')) {
         var vhost_limit = vhost_limits_map[vhost_name]
         var vhost_queue_map = vhost_limit.queue_map;
         var current_queue_count = vhost_limit.queue_count;
         var vhost_max_queues = vhost_limit.max_queues;
 
         var add_queue_count = 0;
-        for (var i = 0; i < json.queues.length; i++) {
-            var q = json.queues[i];
+        for (var i = 0; i < file_json.queues.length; i++) {
+            var q = file_json.queues[i];
             if (!(q.name in vhost_queue_map)) {
                 add_queue_count++;
             }
@@ -565,12 +565,12 @@ function submit_import_apply_limits_for_vhost(vhost_limits_map, json, vhost_name
     }
 }
 
-function submit_import_apply_limits_for_all_vhosts(vhost_limits_map, json, file) {
+function submit_import_apply_limits_for_all_vhosts(vhost_limits_map, file_json, file) {
     var error = false;
-    if (json.hasOwnProperty('queues')) {
+    if (file_json.hasOwnProperty('queues')) {
         var queues_by_vhost = {};
-        for (var i = 0; i < json.queues.length; i++) {
-            var queue = json.queues[i];
+        for (var i = 0; i < file_json.queues.length; i++) {
+            var queue = file_json.queues[i];
             var queue_vhost = queue.vhost;
             var queue_name = queue.name;
             var vhost_limit = vhost_limits_map[queue_vhost]
@@ -610,28 +610,7 @@ function submit_import_apply_limits_for_all_vhosts(vhost_limits_map, json, file)
     }
 }
 
-function submit_import_apply_vhost_limits(vhost_limits_map, vhost_name, file) {
-    var reader = new FileReader();
-    reader.onload = function(evt) {
-        var json = null;
-        try {
-            var jstr = evt.target.result;
-            json = jQuery.parseJSON(jstr);
-        } catch (e) {
-            show_popup('warn', fmt_escape_html(e));
-            return;
-        }
-
-        if (vhost_name && vhost_limits_map.hasOwnProperty(vhost_name)) {
-            submit_import_apply_limits_for_vhost(vhost_limits_map, json, vhost_name, file);
-        } else {
-            submit_import_apply_limits_for_all_vhosts(vhost_limits_map, json, file);
-        }
-    };
-    reader.readAsText(file);
-}
-
-function submit_import_maybe_apply_vhost_limits(vhost_limits, vhost_name, file) {
+function submit_import_maybe_apply_vhost_limits(vhost_limits, vhost_name, file_json, file) {
     var vhost_limits_map = {};
     for (var i = 0; i < vhost_limits.length; i++) {
         var vh_obj = vhost_limits[i];
@@ -659,17 +638,96 @@ function submit_import_maybe_apply_vhost_limits(vhost_limits, vhost_name, file) 
     if (Object.keys(vhost_limits_map).length === 0) {
         submit_import_file(vhost_name, file);
     } else {
-        submit_import_apply_vhost_limits(vhost_limits_map, vhost_name, file);
+        if (vhost_name && vhost_limits_map.hasOwnProperty(vhost_name)) {
+            submit_import_apply_limits_for_vhost(vhost_limits_map, vhost_name, file_json, file);
+        } else {
+            submit_import_apply_limits_for_all_vhosts(vhost_limits_map, file_json, file);
+        }
     }
 }
 
-function submit_import_vhost_limits(resp, vhost_name, file) {
+function submit_import_vhost_limits(resp, vhost_name, file_json, file) {
     var vhost_limits = jQuery.parseJSON(resp.responseText);
     if (vhost_limits && vhost_limits.length > 0) {
-        submit_import_maybe_apply_vhost_limits(vhost_limits, vhost_name, file);
+        submit_import_maybe_apply_vhost_limits(
+            vhost_limits, vhost_name, file_json, file);
     } else {
         submit_import_file(vhost_name, file);
     }
+}
+
+function submit_import_check_vhosts(resp, vhost_name, file) {
+    var vhost_map = null;
+    try {
+        var vhost_obj = jQuery.parseJSON(resp.responseText);
+        vhost_map = vhost_obj.reduce(function(map, vh) {
+            map[vh.name] = 1;
+            return map;
+        }, {});
+    } catch (e) {
+        show_popup('warn', fmt_escape_html(e));
+        return;
+    }
+
+    var reader = new FileReader();
+    reader.onload = function(evt) {
+        var file_json = null;
+        try {
+            var jstr = evt.target.result;
+            file_json = jQuery.parseJSON(jstr);
+        } catch (e) {
+            show_popup('warn', fmt_escape_html(e));
+            return;
+        }
+
+        function next_step() {
+            with_req('GET', '/vhost-limits?queues=true', null, function (resp) {
+                submit_import_vhost_limits(resp, vhost_name, file_json, file);
+            });
+        }
+
+        if (vhost_name) {
+            if (vhost_map.hasOwnProperty(vhost_name)) {
+                next_step();
+            } else {
+                error = true;
+                var errmsg = 'Unexpected error! Virtual host "' + vhost_name +
+                             '" should have been returned via API call to api/vhosts.';
+                show_popup('warn', fmt_escape_html(errmsg));
+            }
+        } else {
+            if (file_json.hasOwnProperty('vhosts')) {
+                var funs = [];
+                file_json.vhosts.forEach(function(vh) {
+                    if (!(vh.name in vhost_map)) {
+                        var func = function(cb) {
+                            function on_success() {
+                                cb(null, vh.name);
+                            }
+                            function on_error() {
+                                // Note: with_req will display this error
+                                var errmsg = 'Error creating vhost: "' + vh.name + '"';
+                                console.log(errmsg);
+                                cb(true, vh.name);
+                            }
+                            with_req('PUT', '/vhosts/' + esc(vh.name), null, on_success, on_error);
+                        };
+                        funs.push(func);
+                    }
+                });
+                if (funs.length > 0) {
+                    async.parallelLimit(funs, 16, function (err, rslts) {
+                        if (!err) {
+                            next_step();
+                        }
+                    });
+                } else {
+                    next_step();
+                }
+            }
+        }
+    };
+    reader.readAsText(file);
 }
 
 function submit_import(form) {
@@ -683,8 +741,8 @@ function submit_import(form) {
             if (vhost_selected) {
                 vhost_name = vhost_upload.val();
             }
-            with_req('GET', '/vhost-limits?queues=true', null, function (resp) {
-                submit_import_vhost_limits(resp, vhost_name, file);
+            with_req('GET', '/vhosts', null, function (resp) {
+                submit_import_check_vhosts(resp, vhost_name, file);
             });
         }
     }
@@ -1235,7 +1293,7 @@ function auth_header() {
     }
 }
 
-function with_req(method, path, body, fun) {
+function with_req(method, path, body, fun, errfun) {
     if(!has_auth_cookie_value()) {
         // navigate to the login form
         location.reload();
@@ -1256,6 +1314,10 @@ function with_req(method, path, body, fun) {
             if (check_bad_response(req, true)) {
                 last_successful_connect = new Date();
                 fun(req);
+            } else {
+                if (errfun) {
+                    errfun(req);
+                }
             }
         }
     };
