@@ -647,7 +647,14 @@ function submit_import_maybe_apply_vhost_limits(vhost_limits, vhost_name, file_j
 }
 
 function submit_import_vhost_limits(resp, vhost_name, file_json, file) {
-    var vhost_limits = jQuery.parseJSON(resp.responseText);
+    var vhost_limits = null;
+    try {
+        vhost_limits = jQuery.parseJSON(resp.responseText);
+    } catch (e) {
+        show_popup('warn', fmt_escape_html(e));
+        return;
+    }
+
     if (vhost_limits && vhost_limits.length > 0) {
         submit_import_maybe_apply_vhost_limits(
             vhost_limits, vhost_name, file_json, file);
@@ -656,7 +663,56 @@ function submit_import_vhost_limits(resp, vhost_name, file_json, file) {
     }
 }
 
-function submit_import_check_vhosts(resp, vhost_name, file) {
+function submit_import_maybe_create_vhosts(vhost_name, file_json, file) {
+    function next_step() {
+        with_req('GET', '/vhost-limits?queues=true', null, function (limits_resp) {
+            submit_import_vhost_limits(limits_resp, vhost_name, file_json, file);
+        });
+    }
+
+    if (vhost_name) {
+        if (vhost_map.hasOwnProperty(vhost_name)) {
+            next_step();
+        } else {
+            error = true;
+            var errmsg = 'Unexpected error! Virtual host "' + vhost_name +
+                            '" should have been returned via API call to api/vhosts.';
+            show_popup('warn', fmt_escape_html(errmsg));
+        }
+    } else {
+        if (file_json.hasOwnProperty('vhosts')) {
+            var funs = [];
+            file_json.vhosts.forEach(function(vh) {
+                if (!(vh.name in vhost_map)) {
+                    var func = function(cb) {
+                        function on_success() {
+                            cb(null, vh.name);
+                        }
+                        function on_error() {
+                            // Note: with_req will display this error
+                            var errmsg = 'Error creating vhost: "' + vh.name + '"';
+                            console.log(errmsg);
+                            cb(true, vh.name);
+                        }
+                        with_req('PUT', '/vhosts/' + esc(vh.name), null, on_success, on_error);
+                    };
+                    funs.push(func);
+                }
+            });
+            if (funs.length > 0) {
+                async.parallelLimit(funs, 16, function (err, rslts) {
+                    if (!err) {
+                        next_step();
+                    }
+                });
+            } else {
+                next_step();
+            }
+        }
+    }
+}
+
+function submit_import_vhosts(resp, vhost_name, file) {
     var vhost_map = null;
     try {
         var vhost_obj = jQuery.parseJSON(resp.responseText);
@@ -679,53 +735,7 @@ function submit_import_check_vhosts(resp, vhost_name, file) {
             show_popup('warn', fmt_escape_html(e));
             return;
         }
-
-        function next_step() {
-            with_req('GET', '/vhost-limits?queues=true', null, function (resp) {
-                submit_import_vhost_limits(resp, vhost_name, file_json, file);
-            });
-        }
-
-        if (vhost_name) {
-            if (vhost_map.hasOwnProperty(vhost_name)) {
-                next_step();
-            } else {
-                error = true;
-                var errmsg = 'Unexpected error! Virtual host "' + vhost_name +
-                             '" should have been returned via API call to api/vhosts.';
-                show_popup('warn', fmt_escape_html(errmsg));
-            }
-        } else {
-            if (file_json.hasOwnProperty('vhosts')) {
-                var funs = [];
-                file_json.vhosts.forEach(function(vh) {
-                    if (!(vh.name in vhost_map)) {
-                        var func = function(cb) {
-                            function on_success() {
-                                cb(null, vh.name);
-                            }
-                            function on_error() {
-                                // Note: with_req will display this error
-                                var errmsg = 'Error creating vhost: "' + vh.name + '"';
-                                console.log(errmsg);
-                                cb(true, vh.name);
-                            }
-                            with_req('PUT', '/vhosts/' + esc(vh.name), null, on_success, on_error);
-                        };
-                        funs.push(func);
-                    }
-                });
-                if (funs.length > 0) {
-                    async.parallelLimit(funs, 16, function (err, rslts) {
-                        if (!err) {
-                            next_step();
-                        }
-                    });
-                } else {
-                    next_step();
-                }
-            }
-        }
+        submit_import_maybe_create_vhosts(vhost_name, file_json, file);
     };
     reader.readAsText(file);
 }
@@ -742,7 +752,7 @@ function submit_import(form) {
                 vhost_name = vhost_upload.val();
             }
             with_req('GET', '/vhosts', null, function (resp) {
-                submit_import_check_vhosts(resp, vhost_name, file);
+                submit_import_vhosts(resp, vhost_name, file);
             });
         }
     }
