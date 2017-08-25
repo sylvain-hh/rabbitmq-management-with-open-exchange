@@ -653,6 +653,7 @@ function postprocess() {
         var type = row.find('select').last();
         key.val($(this).attr('key'));
         value.val($(this).attr('value'));
+        value.focus();
         type.val($(this).attr('type'));
         update_multifields();
     });
