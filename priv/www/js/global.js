@@ -490,7 +490,46 @@ var HELP = {
     'Rate at which runtime context switching takes place on this node.',
 
     'process-reductions':
-    'Rate at which reductions take place on this process.'
+    'Rate at which reductions take place on this process.',
+
+    'x-match':
+    'Binding\'s type determines with regard to the match operators, the condition under which the message is routed.\
+      <dl>\
+        <dt>all</dt>\
+        <dd>all match operators must be true</dd>\
+        <dt>any</dt>\
+        <dd>at least one match operator need to be true</dd>\
+      </dl>',
+
+    'x-match-order' :
+    'Set the order in which the binding will be evaluated during message processing; must be a number, default is 200.<br/>Bindings with the same order will be evaluated in a non-deterministic way.',
+
+    'x-match-force' :
+    'Binding is normally not evaluated when it\'s destination is already picked by a preceding binding; use this flag to force the evaluation to be done.<br/>There is no need to do so when the binding does not use some \'ontrue\' or \'onfalse\' operators.',
+
+    'x-match-operators-values' :
+    'Compare values for a given key according to a given operator (!! implies that the key exists in the header of the message for the comparison to be done !!).<br/>The key is in the form "x-?.. KEYNAME"; note the space between the operator and the key.\
+      <dl>\
+        <dt>&lt; / &le; / &gt; / &ge;</dt>\
+        <dd>the unique associated value must be &lt; / &le; / &gt; / &ge; than the message key\'s value</dd>\
+        <dt>= / &#8800;</dt>\
+        <dd>may have a list of associated values, but be careful to the binding\'s type used! Especially, do not use multi-values with \'=\' in a \'all\' binding\'s type as it will never match. The same caution applies when using \'&#8800;\' in a \'any\' binding\'s type as it will always match.<br/>This specific \'=\' operator may be used to match message\'s header key starting with \'x-\'.</dd>\
+      </dl>',
+
+    'x-match-operators-keys' :
+    'Base the match on the existence or the non-existence of some key(s) in message\'s headers. May have a list of associated values but the final type\'s value must be \'string\' and it\'s value must be the name of the key.\
+      <dl>\
+        <dt>&#8707;</dt>\
+        <dd>key(s) must exist</dd>\
+        <dt>&#8708;</dt>\
+        <dd>key(s) must NOT exist</dd>\
+      </dl>',
+
+    'x-match-goto' :
+    'According to the final result of the current binding\'s evaluation, allows to "jump" to a next binding by specifying its order without exceeding it; if no binding matches, the process stops.<br/>The value must be greater than the current\'s binding order (the process cannot go backward).',
+
+    'x-match-stop' :
+    'According to the final result of the current binding\'s evaluation, allows the process to stop so that no more bindings will be evaluated.'
 };
 
 ///////////////////////////////////////////////////////////////////////////
