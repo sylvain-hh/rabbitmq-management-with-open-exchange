@@ -529,7 +529,10 @@ var HELP = {
     'According to the final result of the current binding\'s evaluation, allows to "jump" to a next binding by specifying its order without exceeding it; if no binding matches, the process stops.<br/>The value must be greater than the current\'s binding order (the process cannot go backward).',
 
     'x-match-stop' :
-    'According to the final result of the current binding\'s evaluation, allows the process to stop so that no more bindings will be evaluated.'
+    'According to the final result of the current binding\'s evaluation, allows the process to stop so that no more bindings will be evaluated.',
+
+    'x-match-routes' :
+    'According to the final result of the current binding\'s evaluation, allows to add or delete other destinations (queue(s) and/or exchange(s)) for the message. May have a list of associated values but the final type\'s value must be \'string\' and it\'s value must be the name of the queue or the exchange. Contrary to the main destination declared in the binding, those other destinations are not validated so that it may exists or not.<br/>Note that the order of the global destinations process determination is : add the main destination, then apply all deletes, then apply all adds.'
 };
 
 ///////////////////////////////////////////////////////////////////////////
