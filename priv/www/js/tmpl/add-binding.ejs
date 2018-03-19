@@ -36,10 +36,12 @@
                 </td>
               </tr>
 <% } %>
+<% if (parent.type != 'headers') { %>
               <tr>
                 <th><label>Routing key:</label></th>
                 <td><input type="text" name="routing_key" value=""/></td>
               </tr>
+<% } %>
               <tr>
                 <th><label>Arguments:</label></th>
                 <td>
@@ -49,20 +51,16 @@
               <tr>
                 <td>Add</td>
                 <td>
-                  Binding type <span class="help" id="x-match"/> <span class="argument-link" field="arguments" key="x-match" type="string" value="all">all</span>/<span class="argument-link" field="arguments" key="x-match" type="string" value="any">any</span> | <span class="argument-link" field="arguments" key="x-match-order" type="number" value="200">Execution order</span><span class="help" id="x-match-order"/> | <span class="argument-link" field="arguments" key="x-match-force" type="boolean" value="true">Force match</span><span class="help" id="x-match-force"/>
+                  Binding type <span class="help" id="x-match"/> <span class="argument-link" field="arguments" key="x-match" type="string" value="all">all</span>/<span class="argument-link" field="arguments" key="x-match" type="string" value="any">any</span>
                   <br/>
-                  Match operators : on values <span class="help" id="x-match-operators-values"/> <span class="argument-link" field="arguments" key="x-?&lt;= key" type="string" value="value">&#8804;</span>/<span class="argument-link" field="arguments" key="x-?&lt; key" type="string" value="value">&lt;</span>/<span class="argument-link" field="arguments" key="x-?= key" type="string" value="value">=</span>/<span class="argument-link" field="arguments" key="x-?!= key" type="string" value="value">&#8800;</span>/<span class="argument-link" field="arguments" key="x-?&gt; key" type="string" value="value">&gt;</span>/<span class="argument-link" field="arguments" key="x-?&gt;= key" type="string" value="value">&#8805;</span>
-                  | on keys <span class="help" id="x-match-operators-keys"/> <span class="argument-link" field="arguments" key="x-?ex" type="list">&#8707;</span> / <span class="argument-link" field="arguments" key="x-?nx" type="list">&#8708;</span>
-                  <br/>
-                  Branching logic : goto <span class="help" id="x-match-goto"/> <span class="argument-link" field="arguments" key="x-match-goto-ontrue" type="number">on true</span>/<span class="argument-link" field="arguments" key="x-match-goto-onfalse" type="number">on false</span> | stop match <span class="help" id="x-match-stop"/> <span class="argument-link" field="arguments" key="x-match-stop-ontrue" type="boolean" value="true">on true</span>/<span class="argument-link" field="arguments" key="x-match-stop-onfalse" type="boolean" value="true">on false</span>
+                  Match operators : on key value(s) <span class="help" id="x-match-operators-values"/> <span class="argument-link" field="arguments" key="x-?&lt;= key" type="string" value="value">&#8804;</span>/<span class="argument-link" field="arguments" key="x-?&lt; key" type="string" value="value">&lt;</span>/<span class="argument-link" field="arguments" key="x-?= key" type="string" value="value">=</span>/<span class="argument-link" field="arguments" key="x-?!= key" type="string" value="value">&#8800;</span>/<span class="argument-link" field="arguments" key="x-?&gt; key" type="string" value="value">&gt;</span>/<span class="argument-link" field="arguments" key="x-?&gt;= key" type="string" value="value">&#8805;</span>
+                  | on key(s) <span class="help" id="x-match-operators-keys"/> <span class="argument-link" field="arguments" key="x-?ex" type="string" value="key1">&#8707;</span> / <span class="argument-link" field="arguments" key="x-?nx" type="string" value="key1">&#8708;</span>
                   <br/>
                   <table>
                     <tr>
                       <td style="padding: 3px 2px 0px 0px;">Routing facilities <span class="help" id="x-match-routes"/> :</td>
                       <td style="padding: 0px 0px 0px 2px;">
-delete from queue(s) <span class="argument-link" field="arguments" key="x-match-delq-ontrue" type="list">on true</span>/<span class="argument-link" field="arguments" key="x-match-delq-onfalse" type="list">on false</span> | delete from exchange(s) <span class="argument-link" field="arguments" key="x-match-dele-ontrue" type="list">on true</span>/<span class="argument-link" field="arguments" key="x-match-dele-onfalse" type="list">on false</span>
-<br/>
-add to queue(s) <span class="argument-link" field="arguments" key="x-match-addq-ontrue" type="list">on true</span>/<span class="argument-link" field="arguments" key="x-match-addq-onfalse" type="list">on false</span> | add to exchange(s) <span class="argument-link" field="arguments" key="x-match-adde-ontrue" type="list">on true</span>/<span class="argument-link" field="arguments" key="x-match-adde-onfalse" type="list">on false</span>
+add to queue(s) <span class="argument-link" field="arguments" key="x-match-addq-ontrue" type="string" value="queue1">on true</span>/<span class="argument-link" field="arguments" key="x-match-addq-onfalse" type="string" value="queue1">on false</span> | add to exchange(s) <span class="argument-link" field="arguments" key="x-match-adde-ontrue" type="string" value="exchange1">on true</span>/<span class="argument-link" field="arguments" key="x-match-adde-onfalse" type="string" value="exchange1">on false</span>
                       </td>
                     </tr>
                   </table>

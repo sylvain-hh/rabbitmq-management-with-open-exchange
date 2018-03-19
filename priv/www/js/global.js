@@ -501,12 +501,6 @@ var HELP = {
         <dd>at least one match operator need to be true</dd>\
       </dl>',
 
-    'x-match-order' :
-    'Set the order in which the binding will be evaluated during message processing; must be a number, default is 200.<br/>Bindings with the same order will be evaluated in a non-deterministic way.',
-
-    'x-match-force' :
-    'Binding is normally not evaluated when it\'s destination is already picked by a preceding binding; use this flag to force the evaluation to be done.<br/>There is no need to do so when the binding does not use some \'ontrue\' or \'onfalse\' operators.',
-
     'x-match-operators-values' :
     'Compare values for a given key according to a given operator (!! implies that the key exists in the header of the message for the comparison to be done !!).<br/>The key is in the form "x-?.. KEYNAME"; note the space between the operator and the key.\
       <dl>\
@@ -525,14 +519,8 @@ var HELP = {
         <dd>key(s) must NOT exist</dd>\
       </dl>',
 
-    'x-match-goto' :
-    'According to the final result of the current binding\'s evaluation, allows to "jump" to a next binding by specifying its order without exceeding it; if no binding matches, the process stops.<br/>The value must be greater than the current\'s binding order (the process cannot go backward).',
-
-    'x-match-stop' :
-    'According to the final result of the current binding\'s evaluation, allows the process to stop so that no more bindings will be evaluated.',
-
     'x-match-routes' :
-    'According to the final result of the current binding\'s evaluation, allows to add or delete other destinations (queue(s) and/or exchange(s)) for the message. May have a list of associated values but the final type\'s value must be \'string\' and it\'s value must be the name of the queue or the exchange. Contrary to the main destination declared in the binding, those other destinations are not validated so that it may exists or not.<br/>Note that the order of the global destinations process determination is : add the main destination, then apply all deletes, then apply all adds.'
+    'According to the final result of the current binding\'s evaluation, allows to add other destinations (queue(s) and/or exchange(s)) for the message. May have a list of associated values but the final type\'s value must be \'string\' and it\'s value must be the name of the queue or the exchange. Contrary to the main destination declared in the binding, those other destinations are not validated so that it may exists or not.'
 };
 
 ///////////////////////////////////////////////////////////////////////////
