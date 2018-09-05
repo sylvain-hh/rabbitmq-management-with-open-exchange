@@ -36,13 +36,49 @@
                 </td>
               </tr>
 <% } %>
+<% if (parent.type != 'x-open') { %>
               <tr>
                 <th><label>Routing key:</label></th>
                 <td><input type="text" name="routing_key" value=""/></td>
               </tr>
               <tr>
+<% } %>
                 <th><label>Arguments:</label></th>
-                <td><div class="multifield" id="arguments"></div></td>
+                <td>
+                  <div class="multifield" id="arguments"></div>
+<% if (parent.type == 'x-open') { %>
+            <table class="argument-links">
+              <tr>
+                <td>Add</td>
+                <td>
+                  Binding type <span class="help" id="x-match"/> : <span class="argument-link" field="arguments" key="x-match" type="string" value="all">all</span>/<span class="argument-link" field="arguments" key="x-match" type="string" value="any">any</span>
+                  <br/>
+                  <table>
+                    <tr>
+                      <td style="padding: 3px 2px 0px 0px;">Match operators :&nbsp;</td>
+                      <td style="padding: 0px 0px 0px 2px;">
+                        on header key value(s) <span class="help" id="x-match-operators-values"/> <span class="argument-link" field="arguments" key="x-hkv?&lt;= key" type="number" value="number">&#8804;</span>/<span class="argument-link" field="arguments" key="x-hkv?&lt; key" type="number" value="number">&lt;</span>/<span class="argument-link" field="arguments" key="x-hkv?= key" type="string" value="value">=</span>/<span class="argument-link" field="arguments" key="x-hkvre?= key" type="string" value="regex">RE</span>/<span class="argument-link" field="arguments" key="x-hkv?!= key" type="string" value="value">&#8800;</span>/<span class="argument-link" field="arguments" key="x-hkvre?!= key" type="string" value="regex">!RE</span>/<span class="argument-link" field="arguments" key="x-hkv?&gt; key" type="number" value="number">&gt;</span>/<span class="argument-link" field="arguments" key="x-hkv?&gt;= key" type="number" value="number">&#8805;</span>
+                        <br/>on header key(s) <span class="help" id="x-match-operators-keys"/> <span class="argument-link" field="arguments" key="x-hk?ex" type="string" value="keyname1">&#8707;</span> / <span class="argument-link" field="arguments" key="x-hk?nx" type="string" value="keyname1">&#8708;</span>
+                      </td>
+                    </tr>
+                  </table> 
+                  Branching logic : <span class="argument-link" field="arguments" key="x-match-order" type="number" value="200">binding order</span><span class="help" id="x-match-order"/> | goto <span class="help" id="x-match-goto"/> <span class="argument-link" field="arguments" key="x-match-goto-ontrue" type="number">on true</span>/<span class="argument-link" field="arguments" key="x-match-goto-onfalse" type="number">on false</span> | stop match <span class="help" id="x-match-stop"/> <span class="argument-link" field="arguments" key="x-match-stop-ontrue" type="boolean" value="true">on true</span>/<span class="argument-link" field="arguments" key="x-match-stop-onfalse" type="boolean" value="true">on false</span>/<span class="argument-link" field="arguments" key="x-match-stop-onfalse" type="boolean" value="true">always</span>
+                  <br/>
+                  <table>
+                    <tr>
+                      <td style="padding: 3px 2px 0px 0px;">Routing facilities <span class="help" id="x-match-routes"/> : &nbsp;</td>
+                      <td style="padding: 0px 0px 0px 2px;">
+                        add to queue(s) <span class="argument-link" field="arguments" key="x-match-addq-ontrue" type="string" value="queue1">on true</span>/<span class="argument-link" field="arguments" key="x-match-addq-onfalse" type="string" value="queue1">on false</span> | add to exchange(s) <span class="argument-link" field="arguments" key="x-match-adde-ontrue" type="string" value="exchange1">on true</span>/<span class="argument-link" field="arguments" key="x-match-adde-onfalse" type="string" value="exchange1">on false</span>
+                  <br/>
+                  delete from queue(s) <span class="argument-link" field="arguments" key="x-match-delq-ontrue" type="list">on true</span>/<span class="argument-link" field="arguments" key="x-match-delq-onfalse" type="list">on false</span> | delete from exchange(s) <span class="argument-link" field="arguments" key="x-match-dele-ontrue" type="list">on true</span>/<span class="argument-link" field="arguments" key="x-match-dele-onfalse" type="list">on false</span>
+                      </td>
+                    </tr>
+                  </table>
+                </td>
+              </tr>
+            </table>
+<% } %>
+                </td>
               </tr>
             </table>
       <input type="submit" value="Bind"/>
