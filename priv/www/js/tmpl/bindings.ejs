@@ -1,14 +1,14 @@
 <%= maybe_truncate(bindings) %>
 <% if (bindings.length > 0)
 {
-  if (typeof exchange_type != 'undefined' && exchange_type == 'headers')
+  if (typeof exchange_type != 'undefined' && exchange_type == 'x-open')
   {
     function get_binding_order(ob)
     {
       // Default order is 200
-      if (ob.arguments.hasOwnProperty('x-match-order') == false)
+      if (ob.arguments.hasOwnProperty('x-order') == false)
         return 200;
-      return ob.arguments["x-match-order"];
+      return ob.arguments["x-order"];
     }
     bindings.sort(function(a,b) {
       if (get_binding_order(a) < get_binding_order(b))
@@ -27,7 +27,11 @@
 <% } else { %>
           <th>From</th>
 <% } %>
+<% if (! (typeof exchange_type != 'undefined' && exchange_type == 'x-open'))
+   {
+%>
           <th>Routing key</th>
+<% } %>
           <th>Arguments</th>
           <th></th>
         </tr>
@@ -62,7 +66,11 @@
                </span>
              </td>
 <% } %>
+<% if (! (typeof exchange_type != 'undefined' && exchange_type == 'x-open'))
+   {
+%>
              <td><%= fmt_string(binding.routing_key) %></td>
+<% } %>
              <td><%= fmt_table_short(binding.arguments) %></td>
              <td class="c">
                <form action="#/bindings" method="delete" class="confirm">
