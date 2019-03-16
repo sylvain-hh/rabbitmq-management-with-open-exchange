@@ -1,17 +1,17 @@
-%%   The contents of this file are subject to the Mozilla Public License
-%%   Version 1.1 (the "License"); you may not use this file except in
-%%   compliance with the License. You may obtain a copy of the License at
-%%   http://www.mozilla.org/MPL/
+%% The contents of this file are subject to the Mozilla Public License
+%% Version 1.1 (the "License"); you may not use this file except in
+%% compliance with the License. You may obtain a copy of the License at
+%% http://www.mozilla.org/MPL/
 %%
-%%   Software distributed under the License is distributed on an "AS IS"
-%%   basis, WITHOUT WARRANTY OF ANY KIND, either express or implied. See the
-%%   License for the specific language governing rights and limitations
-%%   under the License.
+%% Software distributed under the License is distributed on an "AS IS"
+%% basis, WITHOUT WARRANTY OF ANY KIND, either express or implied. See the
+%% License for the specific language governing rights and limitations
+%% under the License.
 %%
-%%   The Original Code is RabbitMQ Management Plugin.
+%% The Original Code is RabbitMQ Management Plugin.
 %%
-%%   The Initial Developer of the Original Code is GoPivotal, Inc.
-%%   Copyright (c) 2007-2017 Pivotal Software, Inc.  All rights reserved.
+%% The Initial Developer of the Original Code is GoPivotal, Inc.
+%% Copyright (c) 2007-2018 Pivotal Software, Inc.  All rights reserved.
 %%
 
 -module(rabbit_mgmt_db).
@@ -309,7 +309,7 @@ overview(User, Ranges, Interval) ->
               format_range(DataLookup, vhost_msg_rates,
                            pick_range(queue_msg_rates, Ranges), Interval),
               format_range(DataLookup, vhost_stats_deliver_stats,
-                           pick_range(churn_rates, Ranges), Interval)]),
+                           pick_range(deliver_get, Ranges), Interval)]),
 
     ChurnRates = format_range(DataLookup, connection_churn_rates,
                               pick_range(queue_msg_counts, Ranges), Interval),
@@ -346,7 +346,8 @@ event_queue() ->
 
 consumers_stats(VHost) ->
     Data =  get_data_from_nodes({rabbit_mgmt_data, consumer_data, [VHost]}),
-    Consumers = [V || {_,V} <- maps:to_list(Data)],
+    Consumers = rabbit_mgmt_data_compat:fill_consumer_active_fields(
+                  [V || {_,V} <- maps:to_list(Data)]),
     ChPids = [ pget(channel_pid, Con)
                || Con <- Consumers, [] =:= pget(channel_details, Con)],
     ChDets = get_channel_detail_lookup(ChPids),
@@ -379,14 +380,17 @@ detail_queue_stats(Ranges, Objs, Interval) ->
        QueueData = maps:get(Id, DataLookup),
        Props = maps:get(queue_stats, QueueData),
        Stats = queue_stats(QueueData, Ranges, Interval),
-       Consumers = [{consumer_details, maps:get(consumer_stats, QueueData)}],
+       ConsumerStats = rabbit_mgmt_data_compat:fill_consumer_active_fields(
+                         maps:get(consumer_stats, QueueData)),
+       Consumers = [{consumer_details, ConsumerStats}],
        StatsD = [{deliveries,
                   detail_stats(QueueData, channel_queue_stats_deliver_stats,
                                deliver_get, second(Id), Ranges, Interval)},
                  {incoming,
                   detail_stats(QueueData, queue_exchange_stats_publish,
                                fine_stats, first(Id), Ranges, Interval)}],
-       {Pid, combine(Props, Obj) ++ Stats ++ StatsD ++ Consumers}
+       Details = augment_details(Obj, []),
+       {Pid, combine(Props, Obj) ++ Stats ++ StatsD ++ Consumers ++ Details}
        end || Obj <- Objs]),
 
    % patch up missing channel details
@@ -455,6 +459,24 @@ format_range(Data, Key, Range0, Interval) ->
    rabbit_mgmt_stats:format_range(Range0, Now, Table, Interval, InstantRateFun,
                                   SamplesFun).
 
+fetch_slides(Ele, Key, Data)
+  when Key =:= channel_queue_stats_deliver_stats orelse
+       Key =:= channel_stats_deliver_stats orelse
+       Key =:= queue_stats_deliver_stats orelse
+       Key =:= vhost_stats_deliver_stats orelse
+       (is_tuple(Key) andalso
+        (element(1, Key) =:= channel_queue_stats_deliver_stats orelse
+         element(1, Key) =:= channel_stats_deliver_stats orelse
+         element(1, Key) =:= queue_stats_deliver_stats orelse
+         element(1, Key) =:= vhost_stats_deliver_stats)) ->
+    case element(Ele, maps:get(Key, Data)) of
+        not_found -> [];
+        Slides when is_list(Slides) ->
+            [rabbit_mgmt_data_compat:fill_get_empty_queue_metric(S)
+             || S <- Slides, not_found =/= S];
+        Slide ->
+            [rabbit_mgmt_data_compat:fill_get_empty_queue_metric(Slide)]
+    end;
 fetch_slides(Ele, Key, Data) ->
     case element(Ele, maps:get(Key, Data)) of
         not_found -> [];
@@ -560,7 +582,9 @@ detail_channel_stats(Ranges, Objs, Interval) ->
          ChannelData = maps:get(Id, DataLookup),
          Props = maps:get(channel_stats, ChannelData),
          Stats = channel_stats(ChannelData, Ranges, Interval),
-         Consumers = [{consumer_details, maps:get(consumer_stats, ChannelData)}],
+         ConsumerStats = rabbit_mgmt_data_compat:fill_consumer_active_fields(
+                           maps:get(consumer_stats, ChannelData)),
+         Consumers = [{consumer_details, ConsumerStats}],
          StatsD = [{publishes,
                     detail_stats(ChannelData, channel_exchange_stats_fine_stats,
                                  fine_stats, first(Id), Ranges, Interval)},
@@ -645,9 +669,8 @@ maps_merge(Fun, M1, M2) ->
 
 -spec merge_data(atom(), any(), any()) -> any().
 merge_data(_, A, B) when is_integer(A), is_integer(B) -> A + B;
-merge_data(_, [], [_|_] = B) -> B;
-merge_data(_, [_|_] = A, []) -> A;
-merge_data(_, [], []) -> [];
+merge_data(_, A, B) when is_list(A), is_list(B) ->
+    A ++ B;
 merge_data(_, {A1, B1}, {[_|_] = A2, [_|_] = B2}) ->
     {[A1 | A2], [B1 | B2]};
 merge_data(_, {A1, B1}, {A2, B2}) -> % first slide

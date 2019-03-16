@@ -141,6 +141,59 @@
                         ]}],
   [rabbitmq_management]},
 
+ {tls_listener_cipher_suites,
+  "management.ssl.ip   = 192.168.1.2
+   management.ssl.port = 15671
+   management.ssl.cacertfile = test/config_schema_SUITE_data/certs/cacert.pem
+   management.ssl.certfile = test/config_schema_SUITE_data/certs/cert.pem
+   management.ssl.keyfile = test/config_schema_SUITE_data/certs/key.pem
+
+   management.ssl.honor_cipher_order   = true
+   management.ssl.honor_ecc_order      = true
+   management.ssl.client_renegotiation = false
+   management.ssl.secure_renegotiate   = true
+
+   management.ssl.versions.1 = tlsv1.2
+   management.ssl.versions.2 = tlsv1.1
+
+   management.ssl.ciphers.1 = ECDHE-ECDSA-AES256-GCM-SHA384
+   management.ssl.ciphers.2 = ECDHE-RSA-AES256-GCM-SHA384
+   management.ssl.ciphers.3 = ECDHE-ECDSA-AES256-SHA384
+   management.ssl.ciphers.4 = ECDHE-RSA-AES256-SHA384
+   management.ssl.ciphers.5 = ECDH-ECDSA-AES256-GCM-SHA384
+   management.ssl.ciphers.6 = ECDH-RSA-AES256-GCM-SHA384
+   management.ssl.ciphers.7 = ECDH-ECDSA-AES256-SHA384
+   management.ssl.ciphers.8 = ECDH-RSA-AES256-SHA384
+   management.ssl.ciphers.9 = DHE-RSA-AES256-GCM-SHA384",
+  [{rabbitmq_management,[
+                         {ssl_config,[
+                                      {ip, "192.168.1.2"},
+                                      {port,15671},
+                                      {cacertfile,"test/config_schema_SUITE_data/certs/cacert.pem"},
+                                      {certfile,"test/config_schema_SUITE_data/certs/cert.pem"},
+                                      {keyfile,"test/config_schema_SUITE_data/certs/key.pem"},
+
+                                      {honor_cipher_order,   true},
+                                      {honor_ecc_order,      true},
+                                      {client_renegotiation, false},
+                                      {secure_renegotiate,   true},
+
+                                      {versions,['tlsv1.2','tlsv1.1']},
+                                      {ciphers, [
+                                        "ECDHE-ECDSA-AES256-GCM-SHA384",
+                                        "ECDHE-RSA-AES256-GCM-SHA384",
+                                        "ECDHE-ECDSA-AES256-SHA384",
+                                        "ECDHE-RSA-AES256-SHA384",
+                                        "ECDH-ECDSA-AES256-GCM-SHA384",
+                                        "ECDH-RSA-AES256-GCM-SHA384",
+                                        "ECDH-ECDSA-AES256-SHA384",
+                                        "ECDH-RSA-AES256-SHA384",
+                                        "DHE-RSA-AES256-GCM-SHA384"
+                                        ]}
+                                     ]}
+                        ]}],
+  [rabbitmq_management]},
+
  {tls_listener_server_opts_compress,
   "management.ssl.compress = true",
   [
@@ -268,6 +321,62 @@
    {rabbitmq_management, [
                           {cors_allow_origins, ["*"]},
                           {cors_max_age, 3600}
+                         ]}
+  ], [rabbitmq_management]
+ },
+
+
+ %%
+ %% CSP
+ %%
+
+ {csp_policy_case1,
+  "management.csp.policy = default-src 'self'",
+  [
+   {rabbitmq_management, [
+                          {content_security_policy, "default-src 'self'"}
+                         ]}
+  ], [rabbitmq_management]
+ },
+
+ {csp_policy_case2,
+  "management.csp.policy = default-src https://onlinebanking.examplebank.com",
+  [
+   {rabbitmq_management, [
+                          {content_security_policy, "default-src https://onlinebanking.examplebank.com"}
+                         ]}
+  ], [rabbitmq_management]
+ },
+
+ {csp_policy_case3,
+  "management.csp.policy = default-src 'self' *.mailsite.com; img-src *",
+  [
+   {rabbitmq_management, [
+                          {content_security_policy, "default-src 'self' *.mailsite.com; img-src *"}
+                         ]}
+  ], [rabbitmq_management]
+ },
+
+ %%
+ %% HSTS
+ %%
+
+ {hsts_policy_case1,
+  "management.hsts.policy = max-age=31536000; includeSubDomains",
+  [
+   {rabbitmq_management, [
+                          {strict_transport_security, "max-age=31536000; includeSubDomains"}
+                         ]}
+  ], [rabbitmq_management]
+ },
+
+ {csp_and_hsts_combined,
+  "management.csp.policy = default-src 'self' *.mailsite.com; img-src *
+   management.hsts.policy = max-age=31536000; includeSubDomains",
+  [
+   {rabbitmq_management, [
+                          {content_security_policy, "default-src 'self' *.mailsite.com; img-src *"},
+                          {strict_transport_security, "max-age=31536000; includeSubDomains"}
                          ]}
   ], [rabbitmq_management]
  },

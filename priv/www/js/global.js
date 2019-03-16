@@ -19,11 +19,13 @@ var KNOWN_ARGS = {'alternate-exchange':        {'short': 'AE',  'type': 'string'
                   'x-expires':                 {'short': 'Exp', 'type': 'int'},
                   'x-max-length':              {'short': 'Lim', 'type': 'int'},
                   'x-max-length-bytes':        {'short': 'Lim B', 'type': 'int'},
+                  'x-delivery-limit':          {'short': 'DlL', 'type': 'int'},
                   'x-overflow':                {'short': 'Ovfl', 'type': 'string'},
                   'x-dead-letter-exchange':    {'short': 'DLX', 'type': 'string'},
                   'x-dead-letter-routing-key': {'short': 'DLK', 'type': 'string'},
                   'x-queue-master-locator':    {'short': 'ML', 'type': 'string'},
-                  'x-max-priority':            {'short': 'Pri', 'type': 'int'}};
+                  'x-max-priority':            {'short': 'Pri', 'type': 'int'},
+                  'x-single-active-consumer':  {'short': 'SAC', 'type': 'boolean'}};
 
 // Things that are like arguments that we format the same way in listings.
 var IMPLICIT_ARGS = {'durable':         {'short': 'D',    'type': 'boolean'},
@@ -45,17 +47,15 @@ var NAVIGATION = {'Overview':    ['#/',            "management"],
                   'Admin':
                     [{'Users':         ['#/users',              "administrator"],
                       'Virtual Hosts': ['#/vhosts',             "administrator"],
+                      'Feature Flags': ['#/feature-flags',      "administrator"],
                       'Policies':      ['#/policies',           "management"],
-                      'Limits':        ['#/limits',   "management"],
+                      'Limits':        ['#/limits',             "management"],
                       'Cluster':       ['#/cluster-name',       "administrator"]},
                      "management"]
                  };
 
-var CHART_PERIODS = {'60|5':       'Last minute',
-                     '600|5':      'Last ten minutes',
-                     '3600|60':    'Last hour',
-                     '28800|600':  'Last eight hours',
-                     '86400|1800': 'Last day'};
+var CHART_RANGES = {'global': [], 'basic': []};
+var ALL_CHART_RANGES = {};
 
 var COLUMNS =
     {'exchanges' :
@@ -138,6 +138,9 @@ var COLUMNS =
 
 // All help ? popups
 var HELP = {
+    'delivery-limit':
+      'The number of allowed unsuccessful delivery attempts. Once a message has been delivered unsucessfully this many times it will be dropped or dead-lettered, depending on the queue configuration.',
+
     'exchange-auto-delete':
       'If yes, the exchange will delete itself after at least one queue or exchange has been bound to this one, and then all queues or exchanges have been unbound.',
 
@@ -168,6 +171,9 @@ var HELP = {
     'queue-dead-letter-routing-key':
       'Optional replacement routing key to use when a message is dead-lettered. If this is not set, the message\'s original routing key will be used.<br/>(Sets the "<a target="_blank" href="http://rabbitmq.com/dlx.html">x-dead-letter-routing-key</a>" argument.)',
 
+    'queue-single-active-consumer':
+      'If set, makes sure only one consumer at a time consumes from the queue and fails over to another registered consumer in case the active one is cancelled or dies.<br/>(Sets the "<a target="_blank" href="http://rabbitmq.com/consumers.html#single-active-consumer">x-single-active-consumer</a>" argument.)',
+
     'queue-max-priority':
       'Maximum number of priority levels for the queue to support; if not set, the queue will not support message priorities.<br/>(Sets the "<a target="_blank" href="http://rabbitmq.com/priority.html">x-max-priority</a>" argument.)',
 
@@ -179,6 +185,9 @@ var HELP = {
 
     'queue-master-locator':
        'Set the queue into master location mode, determining the rule by which the queue master is located when declared on a cluster of nodes.<br/>(Sets the "<a target="_blank" href="https://www.rabbitmq.com/ha.html">x-queue-master-locator</a>" argument.)',
+
+    'queue-type':
+       'Set the queue type, determining the type of queue to use: raft-based high availability or classic queue. Valid values are <code>quorum</code> or <code>classic</code>. It defaults to <code>classic<code>. <br/>',
 
     'queue-messages':
       '<p>Message counts.</p><p>Note that "in memory" and "persistent" are not mutually exclusive; persistent messages can be in memory as well as on disc, and transient messages can be paged out if memory is tight. Non-durable queues will consider all messages to be transient.</p>',
@@ -421,8 +430,15 @@ var HELP = {
 
     'filter-regex' :
     'Whether to enable regular expression matching. Both string literals \
-    and regular expressions are matched in a case-insensitive manner.<br/></br/> \
+    and regular expressions are matched in a case-insensitive manner.<br/><br/> \
     (<a href="https://developer.mozilla.org/en/docs/Web/JavaScript/Guide/Regular_Expressions" target="_blank">Regular expression reference</a>)',
+
+    'consumer-active' :
+    'Whether the consumer is active or not, i.e. whether the consumer can get messages from the queue. \
+    When single active consumer is enabled for the queue, only one consumer at a time is active. \
+    When single active consumer is disabled for the queue, consumers are active by default. \
+    For a quorum queue, a consumer can be inactive because its owning node is suspected down. <br/><br/> \
+    (<a href="http://www.rabbitmq.com/consumers.html#active-consumer" target="_blank">Documentation</a>)',
 
     'plugins' :
     'Note that only plugins which are both explicitly enabled and running are shown here.',
@@ -602,6 +618,7 @@ var is_user_policymaker;         // ...user is not a policymaker
 var user_monitor;                // ...user cannot monitor
 var nodes_interesting;           // ...we are not in a cluster
 var vhosts_interesting;          // ...there is only one vhost
+var queue_type;
 var rabbit_versions_interesting; // ...all cluster nodes run the same version
 
 // Extensions write to this, the dispatcher maker reads it
@@ -661,8 +678,52 @@ function setup_global_vars() {
         }
     }
     vhosts_interesting = JSON.parse(sync_get('/vhosts')).length > 1;
+
+    queue_type = "classic";
     current_vhost = get_pref('vhost');
     exchange_types = overview.exchange_types;
+
+    setup_chart_ranges(overview.sample_retention_policies);
+}
+
+function setup_chart_ranges(srp) {
+    var range_types = ['global', 'basic'];
+    var default_ranges = {
+        60:    ['60|5', 'Last minute'],
+        600:   ['600|5', 'Last ten minutes'],
+        3600:  ['3600|60', 'Last hour'],
+        28800: ['28800|600', 'Last eight hours'],
+        86400: ['86400|1800', 'Last day']
+    };
+
+    for (var range in default_ranges) {
+        var data = default_ranges[range];
+        var range = data[0];
+        var desc = data[1];
+        ALL_CHART_RANGES[range] = desc;
+    }
+
+    for (var i = 0; i < range_types.length; ++i) {
+        var range_type = range_types[i];
+        if (srp.hasOwnProperty(range_type)) {
+            var srp_range_types = srp[range_type];
+            var last_minute_added = false;
+            for (var j = 0; j < srp_range_types.length; ++j) {
+                var srp_range = srp_range_types[j];
+                if (default_ranges.hasOwnProperty(srp_range)) {
+                    if (srp_range === 60) {
+                        last_minute_added = true;
+                    }
+                    var v = default_ranges[srp_range];
+                    CHART_RANGES[range_type].push(v);
+                }
+            }
+            if (!last_minute_added) {
+                var last_minute = default_ranges[60];
+                CHART_RANGES[range_type].unshift(last_minute);
+            }
+        }
+    }
 }
 
 function expand_user_tags(tags) {

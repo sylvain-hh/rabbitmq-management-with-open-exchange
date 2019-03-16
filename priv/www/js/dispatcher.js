@@ -95,9 +95,8 @@ dispatcher_add(function(sammy) {
         });
 
     sammy.get('#/queues', function() {
-                          renderQueues();
-            });
-
+            renderQueues();
+        });
 
     sammy.get('#/queues/:vhost/:name', function() {
             var path = '/queues/' + esc(this.params['vhost']) + '/' + esc(this.params['name']);
@@ -200,6 +199,15 @@ dispatcher_add(function(sammy) {
     sammy.del('#/users', function() {
             if (sync_delete(this, '/users/:username'))
                 go_to('#/users');
+            return false;
+        });
+
+    path('#/feature-flags', {'feature_flags': {path:    '/feature-flags',
+                                               options: {sort:true}},
+                             'permissions': '/permissions'}, 'feature-flags');
+    sammy.put('#/feature-flags-enable', function() {
+            if (sync_put(this, '/feature-flags/:name/enable'))
+                update();
             return false;
         });
 

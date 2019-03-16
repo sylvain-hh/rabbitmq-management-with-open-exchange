@@ -105,6 +105,11 @@ function fmt_features_short(obj) {
     var res = '';
     var features = args_to_features(obj);
 
+    if (obj.owner_pid_details != undefined) {
+        res += '<acronym title="Exclusive queue: click for owning connection">'
+            + link_conn(obj.owner_pid_details.name, "Excl") + '</acronym> ';
+    }
+
     for (var k in ALL_ARGS) {
         if (features[k] != undefined) {
             res += '<abbr title="' + k + ': ' + fmt_string(features[k]) +
@@ -117,6 +122,10 @@ function fmt_features_short(obj) {
         '">Args</abbr> ';
     }
     return res;
+}
+
+function fmt_activity_status(obj) {
+    return obj.replace('_', ' ');
 }
 
 function short_conn(name) {
@@ -187,6 +196,20 @@ function fmt_sync_state(queue) {
     res += (queue.messages == 0) ? 100 : Math.round(100 * queue.sync_messages /
                                                     queue.messages);
     res += '%</b></p>';
+    return res;
+}
+
+function fmt_members(queue) {
+    var res = '';
+    var isMajority = (queue.online.length >= (Math.floor(queue.members.length / 2) + 1));
+    var followers = queue.online;
+    followers.splice(followers.indexOf(queue.node), 1);
+    if (isMajority) {
+        res += ' <abbr title="Followers: ' + followers + '">+' +
+            followers.length + '</abbr>';
+    } else {
+        res += ' <abbr class="warning" title="Cluster is in minority">+' + followers.length + '</abbr>';
+    }
     return res;
 }
 
@@ -536,6 +559,14 @@ function fmt_object_state(obj) {
         colour = 'yellow';
         explanation = 'Publishing rate recently throttled by server.';
     }
+    else if (obj.state == 'terminated') {
+        colour = 'yellow';
+        var terminated_by = "";
+        if (obj.terminated_by) {
+            terminated_by = " by \"" + String(obj.terminated_by) + "\"";
+        }
+        explanation = 'The queue is being deleted' + terminated_by + ".";
+    }
     else if (obj.state == 'down') {
         colour = 'red';
         explanation = 'The queue is located on a cluster node or nodes that ' +
@@ -598,16 +629,21 @@ function fmt_uri_with_credentials(uri) {
 function fmt_client_name(properties) {
     var res = [];
     if (properties.product != undefined) {
-        res.push(fmt_trunc(properties.product, 10));
+        res.push(fmt_trunc(properties.product, 120));
     }
     if (properties.platform != undefined) {
-        res.push(fmt_trunc(properties.platform, 10));
+        res.push(fmt_trunc(properties.platform, 120));
     }
     res = res.join(" / ");
 
     if (properties.version != undefined) {
         res += '<sub>' + fmt_trunc(properties.version) + '</sub>';
     }
+
+    if (properties.client_id != undefined) {
+        res += '<sub>' + fmt_trunc(properties.client_id, 120) + '</sub>';
+    }
+
     return res;
 }
 
@@ -751,9 +787,8 @@ function filter_ui_pg(items, truncate, appendselect) {
 
 
 function filter_ui(items) {
-    current_truncate = (current_truncate == null) ?
-        parseInt(get_pref('truncate')) : current_truncate;
-     var truncate_input = '<input type="text" id="truncate" value="' +
+    var current_truncate = parseInt(get_pref('truncate'));
+    var truncate_input   = '<input type="text" id="truncate" value="' +
         current_truncate + '">';
      var selected = '';
     if (items.length > current_truncate) {
@@ -769,19 +804,19 @@ function filter_ui(items) {
 }
 
 function paginate_header_ui(pages, context){
-     var res = '<h2 class="updatable">' ;
-     res += ' All ' + context +' (' + pages.total_count + ((pages.filtered_count != pages.total_count) ?   ' Filtered: ' + pages.filtered_count  : '') +  ')';
-     res += '</h2>'
+     var res = '<h2 class="updatable">';
+     res += ' All ' + context +' (' + pages.total_count + ((pages.filtered_count != pages.total_count) ?  ', filtered down to ' + pages.filtered_count  : '') +  ')';
+     res += '</h2>';
     return res;
 }
 
-function pagiante_ui(pages, context){
+function paginate_ui(pages, context){
     var res = paginate_header_ui(pages, context);
     res += '<div class="hider">';
     res += '<h3>Pagination</h3>';
     res += '<div class="filter">';
     res += '<table class="updatable">';
-    res += '<tr>'
+    res += '<tr>';
     res += '<th><label for="'+ context +'-page">Page </label> <select id="'+ context +'-page" class="pagination_class pagination_class_select"  >';
     var page =  fmt_page_number_request(context, pages.page);
     if (pages.page_count > 0 &&  page > pages.page_count){
@@ -796,10 +831,10 @@ function pagiante_ui(pages, context){
     res +=    '<option value="' + i + '"> ' + i + '</option>';
              } };
     res += '</select> </th>';
-    res += '<th><label for="'+ context +'-pageof">of </label>  ' + pages.page_count +'</th>';
-    res += '<th><span><label for="'+ context +'-name"> - Filter: </label> <input id="'+ context +'-name"  data-page-start="1"  class="pagination_class pagination_class_input" type="text"' ;
-    res +=   'value = ' + fmt_filter_name_request(context, "") + '>' ;
-    res +=   '</input></th></span>' ;
+    res += '<th><label for="' + context +'-pageof">of </label>  ' + pages.page_count +'</th>';
+    res += '<th><span><label for="'+ context +'-name"> - Filter: </label> <input id="'+ context +'-name"  data-page-start="1"  class="pagination_class pagination_class_input" type="text"';
+    res +=   'value = ' + fmt_filter_name_request(context, "") + '>';
+    res +=   '</input></th></span>';
 
     res += '<th> <input type="checkbox" data-page-start="1" class="pagination_class pagination_class_checkbox" id="'+ context +'-filter-regex-mode"' ;
 
@@ -810,10 +845,10 @@ function pagiante_ui(pages, context){
     res += '<span><label for="'+ context +'-pagesize"> Displaying ' + pages.item_count + '  item'+ ((pages.item_count > 1) ? 's' : '' ) + ' , page size up to: </label> ';
     res +=       ' <input id="'+ context +'-pagesize" data-page-start="1" class="pagination_class shortinput pagination_class_input" type="text" ';
     res +=   'value = "' +  fmt_page_size_request(context, pages.page_size) +'"';
-    res +=   'onkeypress = "return isNumberKey(event)"> </input></span></p>' ;
-    res += '</tr>'
-    res += '</div>'
-    res += '</div>'
+    res +=   'onkeypress = "return isNumberKey(event)"> </input></span></p>';
+    res += '</tr>';
+    res += '</div>';
+    res += '</div>';
     return res;
 }
 
@@ -901,36 +936,41 @@ function properties_size(obj) {
     return count;
 }
 
-function frm_default_value(template, defaultValue){
-    var store_value = get_pref(template);
-    var result = (((store_value == null)
-      || (store_value == undefined)
-      || (store_value == '')) ? defaultValue :
-    store_value);
+function stored_value_or_default(template, defaultValue){
+    var stored_value = get_pref(template);
+    var result = (((stored_value == null)
+      || (stored_value == undefined)
+      || (stored_value == '')) ? defaultValue :
+    stored_value);
 
    return ((result == undefined) ? defaultValue : result);
 }
 
 function fmt_page_number_request(template, defaultPage){
-     if  ((defaultPage == undefined) || (defaultPage <= 0))
+     if  ((defaultPage == undefined) || (defaultPage <= 0)) {
          defaultPage = 1;
-    return frm_default_value(template + '_current_page_number', defaultPage);
+     }
+    return stored_value_or_default(template + '_current_page_number', defaultPage);
 }
 function fmt_page_size_request(template, defaultPageSize){
-    if  ((defaultPageSize == undefined) || (defaultPageSize < 0))
+    if  ((defaultPageSize == undefined) || (defaultPageSize < 0)) {
         defaultPageSize = 100;
-    result = frm_default_value(template + '_current_page_size', defaultPageSize);
-    if (result > 500) result = 500; // max
+    }
+
+    var result = stored_value_or_default(template + '_current_page_size', defaultPageSize);
+    if (result > 500) {
+        // hard limit
+        result = 500;
+    }
     return result;
 }
 
 function fmt_filter_name_request(template, defaultName){
-    return frm_default_value(template + '_current_filter_name', defaultName);
+    return fmt_escape_html(stored_value_or_default(template + '_current_filter_name', defaultName));
 }
 
 function fmt_regex_request(template, defaultName){
-    result = frm_default_value(template + '_current_regex', defaultName);
-    return result;
+    return fmt_escape_html(stored_value_or_default(template + '_current_regex', defaultName));
 }
 
 function fmt_vhost_state(vhost){
@@ -957,7 +997,7 @@ function fmt_vhost_state(vhost){
 }
 
 function isNumberKey(evt){
-    var charCode = (evt.which) ? evt.which : event.keyCode
+    var charCode = (evt.which) ? evt.which : event.keyCode;
     if (charCode > 31 && (charCode < 48 || charCode > 57))
         return false;
     return true;

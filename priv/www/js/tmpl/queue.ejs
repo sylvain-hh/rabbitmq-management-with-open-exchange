@@ -22,17 +22,50 @@
         <th>Operator policy</th>
         <td><%= fmt_string(queue.operator_policy, '') %></td>
       </tr>
+      <% if (queue.owner_pid_details != undefined) { %>
+        <tr>
+          <th>Exclusive owner</th>
+          <td><%= link_conn(queue.owner_pid_details.name) %></td>
+        </tr>
+      <% } %>
       <tr>
         <th>Effective policy definition</th>
         <td><%= fmt_table_short(queue.effective_policy_definition) %></td>
       </tr>
 <% if (nodes_interesting) { %>
       <tr>
+      <% if (is_quorum(queue)) { %>
+        <th>Leader</th>
+      <% } else { %>
         <th>Node</th>
+      <% } %>
         <td><%= fmt_node(queue.node) %></td>
       </tr>
-  <% if (!queue.exclusive) { %>
+  <% if (is_quorum(queue)) { %>
       <tr>
+        <th>Online</th>
+                                              <td>
+                                              <%
+                                              for (var i in queue.online) {
+                                                      %>
+                                                      <%= fmt_node(queue.online[i]) %>
+                                                      <br/>
+                                                      <% } %>
+                                              </td>
+      </tr>
+        <th>Members</th>
+                                              <td>
+                                              <%
+                                              for (var i in queue.members) {
+                                                      %>
+                                                      <%= fmt_node(queue.members[i]) %>
+                                                      <br/>
+                                                      <% } %>
+                                              </td>
+      </tr>
+  <% } else { %>
+    <% if (!queue.exclusive) { %>
+        <tr>
         <th>Mirrors</th>
         <td>
           <%
@@ -77,6 +110,7 @@
         </td>
       </tr>
   <% } %>
+  <% } %>
 <% } %>
     </table>
 
@@ -93,6 +127,12 @@
         <th>Consumer utilisation <span class="help" id="queue-consumer-utilisation"></th>
         <td><%= fmt_percent(queue.consumer_utilisation) %></td>
       </tr>
+      <% if (is_quorum(queue)) { %>
+      <tr>
+        <th>Open files</th>
+        <td><%= fmt_table_short(queue.open_files) %></td>
+      </tr>
+      <% } %>
     </table>
 
     <table class="facts">
@@ -101,9 +141,11 @@
         <th class="horizontal">Total</th>
         <th class="horizontal">Ready</th>
         <th class="horizontal">Unacked</th>
+        <% if (is_classic(queue)) { %>
         <th class="horizontal">In memory</th>
         <th class="horizontal">Persistent</th>
         <th class="horizontal">Transient, Paged Out</th>
+        <% } %>
       </tr>
       <tr>
         <th>
@@ -119,6 +161,7 @@
         <td class="r">
           <%= fmt_num_thousands(queue.messages_unacknowledged) %>
         </td>
+        <% if (is_classic(queue)) { %>
         <td class="r">
           <%= fmt_num_thousands(queue.messages_ram) %>
         </td>
@@ -128,6 +171,7 @@
         <td class="r">
           <%= fmt_num_thousands(queue.messages_paged_out) %>
         </td>
+        <% } %>
       </tr>
       <tr>
         <th>
@@ -143,6 +187,7 @@
         <td class="r">
           <%= fmt_bytes(queue.message_bytes_unacknowledged) %>
         </td>
+        <% if (is_classic(queue)) { %>
         <td class="r">
           <%= fmt_bytes(queue.message_bytes_ram) %>
         </td>
@@ -152,6 +197,7 @@
         <td class="r">
           <%= fmt_bytes(queue.message_bytes_paged_out) %>
         </td>
+        <% } %>
       </tr>
       <tr>
         <th>

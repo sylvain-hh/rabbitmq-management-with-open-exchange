@@ -11,7 +11,7 @@
 %% The Original Code is RabbitMQ.
 %%
 %% The Initial Developer of the Original Code is GoPivotal, Inc.
-%% Copyright (c) 2016 Pivotal Software, Inc.  All rights reserved.
+%% Copyright (c) 2016-2019 Pivotal Software, Inc.  All rights reserved.
 %%
 
 -module(rabbit_mgmt_http_SUITE).
@@ -86,6 +86,7 @@ all_tests() -> [
     multiple_invalid_connections_test,
     exchanges_test,
     queues_test,
+    quorum_queues_test,
     queues_well_formed_json_test,
     bindings_test,
     bindings_post_test,
@@ -94,7 +95,8 @@ all_tests() -> [
     permissions_vhost_test,
     permissions_amqp_test,
     permissions_connection_channel_consumer_test,
-    consumers_test,
+    consumers_cq_test,
+    consumers_qq_test,
     definitions_test,
     definitions_vhost_test,
     definitions_password_test,
@@ -122,6 +124,7 @@ all_tests() -> [
     get_encoding_test,
     get_fail_test,
     publish_test,
+    publish_large_message_test,
     publish_accept_json_test,
     publish_fail_test,
     publish_base64_test,
@@ -136,7 +139,9 @@ all_tests() -> [
     cors_test,
     vhost_limits_list_test,
     vhost_limit_set_test,
-    rates_test].
+    rates_test,
+    single_active_consumer_cq_test,
+    single_active_consumer_qq_test].
 
 %% -------------------------------------------------------------------
 %% Testsuite setup/teardown.
@@ -171,10 +176,42 @@ init_per_group(all_tests_with_prefix=Group, Config0) ->
     PathConfig = {rabbitmq_management, [{path_prefix, ?PATH_PREFIX}]},
     Config1 = rabbit_ct_helpers:merge_app_env(Config0, PathConfig),
     Config2 = finish_init(Group, Config1),
-    start_broker(Config2);
+    Config3 = start_broker(Config2),
+    Nodes = rabbit_ct_broker_helpers:get_node_configs(
+              Config3, nodename),
+    Ret = rabbit_ct_broker_helpers:rpc(
+            Config3, 0,
+            rabbit_feature_flags,
+            is_supported_remotely,
+            [Nodes, [quorum_queue], 60000]),
+    case Ret of
+        true ->
+            ok = rabbit_ct_broker_helpers:rpc(
+                    Config3, 0, rabbit_feature_flags, enable, [quorum_queue]),
+            Config3;
+        false ->
+            end_per_group(Group, Config3),
+            {skip, "Quorum queues are unsupported"}
+    end;
 init_per_group(Group, Config0) ->
     Config1 = finish_init(Group, Config0),
-    start_broker(Config1).
+    Config2 = start_broker(Config1),
+    Nodes = rabbit_ct_broker_helpers:get_node_configs(
+              Config2, nodename),
+    Ret = rabbit_ct_broker_helpers:rpc(
+            Config2, 0,
+            rabbit_feature_flags,
+            is_supported_remotely,
+            [Nodes, [quorum_queue], 60000]),
+    case Ret of
+        true ->
+            ok = rabbit_ct_broker_helpers:rpc(
+                    Config2, 0, rabbit_feature_flags, enable, [quorum_queue]),
+            Config2;
+        false ->
+            end_per_group(Group, Config2),
+            {skip, "Quorum queues are unsupported"}
+    end.
 
 end_per_group(_, Config) ->
     inets:stop(),
@@ -949,6 +986,41 @@ queues_test(Config) ->
     http_delete(Config, "/queues/downvhost/bar", {group, '2xx'}),
     passed.
 
+quorum_queues_test(Config) ->
+    %% Test in a loop that no metrics are left behing after deleting a queue
+    quorum_queues_test_loop(Config, 5).
+
+quorum_queues_test_loop(_Config, 0) ->
+    passed;
+quorum_queues_test_loop(Config, N) ->
+    Good = [{durable, true}, {arguments, [{'x-queue-type', 'quorum'}]}],
+    http_get(Config, "/queues/%2f/qq", ?NOT_FOUND),
+    http_put(Config, "/queues/%2f/qq", Good, {group, '2xx'}),
+
+    {Conn, Ch} = open_connection_and_channel(Config),
+    Publish = fun() ->
+                      amqp_channel:call(
+                        Ch, #'basic.publish'{exchange = <<"">>,
+                                             routing_key = <<"qq">>},
+                        #amqp_msg{payload = <<"message">>})
+              end,
+    Publish(),
+    Publish(),
+    wait_until(fun() ->
+                       2 == maps:get(messages, http_get(Config, "/queues/%2f/qq?lengths_age=60&lengths_incr=5&msg_rates_age=60&msg_rates_incr=5&data_rates_age=60&data_rates_incr=5"), undefined)
+               end, 100),
+
+    http_delete(Config, "/queues/%2f/qq", {group, '2xx'}),
+    http_put(Config, "/queues/%2f/qq", Good, {group, '2xx'}),
+
+    wait_until(fun() ->
+                       0 == maps:get(messages, http_get(Config, "/queues/%2f/qq?lengths_age=60&lengths_incr=5&msg_rates_age=60&msg_rates_incr=5&data_rates_age=60&data_rates_incr=5"), undefined)
+               end, 100),
+
+    http_delete(Config, "/queues/%2f/qq", {group, '2xx'}),
+    close_connection(Conn),
+    quorum_queues_test_loop(Config, N-1).
+
 queues_well_formed_json_test(Config) ->
     %% TODO This test should be extended to the whole API
     Good = [{durable, true}],
@@ -1229,8 +1301,8 @@ permissions_connection_channel_consumer_test(Config) ->
         Ch <- [Ch1, Ch2, Ch3]],
     timer:sleep(1500),
     AssertLength = fun (Path, User, Len) ->
-                           ?assertEqual(Len,
-                                        length(http_get(Config, Path, User, User, ?OK)))
+                           Res = http_get(Config, Path, User, User, ?OK),
+                           ?assertEqual(Len, length(Res))
                    end,
     [begin
          AssertLength(P, "user", 1),
@@ -1269,11 +1341,16 @@ permissions_connection_channel_consumer_test(Config) ->
     http_delete(Config, "/queues/%2F/test", {group, '2xx'}),
     passed.
 
+consumers_cq_test(Config) ->
+    consumers_test(Config, [{'x-queue-type', <<"classic">>}]).
 
+consumers_qq_test(Config) ->
+    consumers_test(Config, [{'x-queue-type', <<"quorum">>}]).
 
-
-consumers_test(Config) ->
-    http_put(Config, "/queues/%2F/test", #{}, {group, '2xx'}),
+consumers_test(Config, Args) ->
+    QArgs = [{auto_delete, false}, {durable, true},
+             {arguments, Args}],
+    http_put(Config, "/queues/%2F/test", QArgs, {group, '2xx'}),
     {Conn, _ConnPath, _ChPath, _ConnChPath} = get_conn(Config, "guest", "guest"),
     {ok, Ch} = amqp_connection:open_channel(Conn),
     amqp_channel:subscribe(
@@ -1281,11 +1358,62 @@ consumers_test(Config) ->
                            no_ack       = false,
                            consumer_tag = <<"my-ctag">> }, self()),
     timer:sleep(1500),
-    assert_list([#{exclusive    => false,
-                   ack_required => true,
-                   consumer_tag => <<"my-ctag">>}], http_get(Config, "/consumers")),
+    assert_list([#{exclusive       => false,
+                   ack_required    => true,
+                   active          => true,
+                   activity_status => <<"up">>,
+                   consumer_tag    => <<"my-ctag">>}], http_get(Config, "/consumers")),
     amqp_connection:close(Conn),
     http_delete(Config, "/queues/%2F/test", {group, '2xx'}),
+    passed.
+
+single_active_consumer_cq_test(Config) ->
+    single_active_consumer(Config,
+                           "/queues/%2F/single-active-consumer-cq",
+                           <<"single-active-consumer-cq">>,
+                           [{'x-queue-type', <<"classic">>}]).
+
+single_active_consumer_qq_test(Config) ->
+    single_active_consumer(Config,
+                           "/queues/%2F/single-active-consumer-qq",
+                           <<"single-active-consumer-qq">>,
+                           [{'x-queue-type', <<"quorum">>}]).
+
+single_active_consumer(Config, Url, QName, Args) ->
+    QArgs = [{auto_delete, false}, {durable, true},
+             {arguments, [{'x-single-active-consumer', true}] ++ Args}],
+    http_put(Config, Url, QArgs, {group, '2xx'}),
+    {Conn, _ConnPath, _ChPath, _ConnChPath} = get_conn(Config, "guest", "guest"),
+    {ok, Ch} = amqp_connection:open_channel(Conn),
+    amqp_channel:subscribe(
+        Ch, #'basic.consume'{queue        = QName,
+            no_ack       = true,
+            consumer_tag = <<"1">> }, self()),
+    {ok, Ch2} = amqp_connection:open_channel(Conn),
+    amqp_channel:subscribe(
+        Ch2, #'basic.consume'{queue        = QName,
+            no_ack       = true,
+            consumer_tag = <<"2">> }, self()),
+    timer:sleep(1500),
+    assert_list([#{exclusive       => false,
+                   ack_required    => false,
+                   active          => true,
+                   activity_status => <<"single_active">>,
+                   consumer_tag    => <<"1">>},
+                 #{exclusive       => false,
+                   ack_required    => false,
+                   active          => false,
+                   activity_status => <<"waiting">>,
+                   consumer_tag    => <<"2">>}], http_get(Config, "/consumers")),
+    amqp_channel:close(Ch),
+    timer:sleep(1500),
+    assert_list([#{exclusive       => false,
+                   ack_required    => false,
+                   active          => true,
+                   activity_status => <<"single_active">>,
+                   consumer_tag    => <<"2">>}], http_get(Config, "/consumers")),
+    amqp_connection:close(Conn),
+    http_delete(Config, Url, {group, '2xx'}),
     passed.
 
 defs(Config, Key, URI, CreateMethod, Args) ->
@@ -1493,10 +1621,16 @@ definitions_vhost_test(Config) ->
                  definition => #{testpos => [1, 2, 3]},
                  priority   => 1}),
 
+    defs_vhost(Config, parameters, "/parameters/vhost-limits/<vhost>/limits", put,
+               #{vhost      => vhost,
+                 name       => <<"limits">>,
+                 component  => <<"vhost-limits">>,
+                 value      => #{ 'max-connections' => 100 }}),
     Upload =
         #{queues     => [],
           exchanges  => [],
           policies   => [],
+          parameters => [],
           bindings   => []},
     http_post(Config, "/definitions/othervhost", Upload, ?BAD_REQUEST),
 
@@ -1804,7 +1938,7 @@ exchanges_pagination_test(Config) ->
     http_get(Config, "/exchanges?page=1000", ?BAD_REQUEST),
     http_get(Config, "/exchanges?page=-1", ?BAD_REQUEST),
     http_get(Config, "/exchanges?page=not_an_integer_value", ?BAD_REQUEST),
-    http_get(Config, "/exchanges?page=1&page_size=not_an_intger_value", ?BAD_REQUEST),
+    http_get(Config, "/exchanges?page=1&page_size=not_an_integer_value", ?BAD_REQUEST),
     http_get(Config, "/exchanges?page=1&page_size=501", ?BAD_REQUEST), %% max 500 allowed
     http_get(Config, "/exchanges?page=-1&page_size=-2", ?BAD_REQUEST),
     http_delete(Config, "/exchanges/%2F/test0", {group, '2xx'}),
@@ -1946,7 +2080,7 @@ queue_pagination_test(Config) ->
     http_get(Config, "/queues?page=1000", ?BAD_REQUEST),
     http_get(Config, "/queues?page=-1", ?BAD_REQUEST),
     http_get(Config, "/queues?page=not_an_integer_value", ?BAD_REQUEST),
-    http_get(Config, "/queues?page=1&page_size=not_an_intger_value", ?BAD_REQUEST),
+    http_get(Config, "/queues?page=1&page_size=not_an_integer_value", ?BAD_REQUEST),
     http_get(Config, "/queues?page=1&page_size=501", ?BAD_REQUEST), %% max 500 allowed
     http_get(Config, "/queues?page=-1&page_size=-2", ?BAD_REQUEST),
     http_delete(Config, "/queues/%2F/test0", {group, '2xx'}),
@@ -2308,23 +2442,49 @@ get_fail_test(Config) ->
     http_delete(Config, "/users/myuser", {group, '2xx'}),
     passed.
 
+
+-define(LARGE_BODY_BYTES, 25000000).
+
 publish_test(Config) ->
     Headers = #{'x-forwarding' => [#{uri => <<"amqp://localhost/%2F/upstream">>}]},
     Msg = msg(<<"publish_test">>, Headers, <<"Hello world">>),
     http_put(Config, "/queues/%2F/publish_test", #{}, {group, '2xx'}),
     ?assertEqual(#{routed => true},
-                 http_post(Config, "/exchanges/%2F/amq.default/publish", Msg, ?OK)),
+                  http_post(Config, "/exchanges/%2F/amq.default/publish", Msg, ?OK)),
     [Msg2] = http_post(Config, "/queues/%2F/publish_test/get", [{ackmode, ack_requeue_false},
-                                                           {count,    1},
-                                                           {encoding, auto}], ?OK),
+                                                                {count,    1},
+                                                                {encoding, auto}], ?OK),
     assert_item(Msg, Msg2),
     http_post(Config, "/exchanges/%2F/amq.default/publish", Msg2, ?OK),
     [Msg3] = http_post(Config, "/queues/%2F/publish_test/get", [{ackmode, ack_requeue_false},
-                                                           {count,    1},
-                                                           {encoding, auto}], ?OK),
+                                                               {count,    1},
+                                                               {encoding, auto}], ?OK),
     assert_item(Msg, Msg3),
     http_delete(Config, "/queues/%2F/publish_test", {group, '2xx'}),
     passed.
+
+publish_large_message_test(Config) ->
+  Headers = #{'x-forwarding' => [#{uri => <<"amqp://localhost/%2F/upstream">>}]},
+  Body = binary:copy(<<"a">>, ?LARGE_BODY_BYTES),
+  Msg = msg(<<"publish_accept_json_test">>, Headers, Body),
+  http_put(Config, "/queues/%2F/publish_accept_json_test", #{}, {group, '2xx'}),
+  ?assertEqual(#{routed => true},
+               http_post_accept_json(Config, "/exchanges/%2F/amq.default/publish",
+                                     Msg, ?OK)),
+
+  [Msg2] = http_post_accept_json(Config, "/queues/%2F/publish_accept_json_test/get",
+                                 [{ackmode, ack_requeue_false},
+                                  {count, 1},
+                                  {encoding, auto}], ?OK),
+  assert_item(Msg, Msg2),
+  http_post_accept_json(Config, "/exchanges/%2F/amq.default/publish", Msg2, ?OK),
+  [Msg3] = http_post_accept_json(Config, "/queues/%2F/publish_accept_json_test/get",
+                                 [{ackmode, ack_requeue_false},
+                                  {count, 1},
+                                  {encoding, auto}], ?OK),
+  assert_item(Msg, Msg3),
+  http_delete(Config, "/queues/%2F/publish_accept_json_test", {group, '2xx'}),
+  passed.
 
 publish_accept_json_test(Config) ->
     Headers = #{'x-forwarding' => [#{uri => <<"amqp://localhost/%2F/upstream">>}]},

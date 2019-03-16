@@ -734,13 +734,19 @@ function update_pages(template, page_start){
 }
 
 function renderQueues() {
-    render({'queues':  {path: url_pagination_template('queues', 1, 100),
-                        options: {sort:true, vhost:true, pagination:true}},
-                        'vhosts': '/vhosts'}, 'queues', '#/queues');
+    ensure_queues_chart_range();
+    render({'queues': {
+        path: url_pagination_template('queues', 1, 100),
+        options: {
+            sort: true,
+            vhost: true,
+            pagination: true
+        }
+    }, 'vhosts': '/vhosts'}, 'queues', '#/queues');
 }
 
 function renderExchanges() {
-    render({'exchanges':  {path: url_pagination_template('exchanges', 1, 100),
+    render({'exchanges': {path: url_pagination_template('exchanges', 1, 100),
                           options: {sort:true, vhost:true, pagination:true}},
                          'vhosts': '/vhosts'}, 'exchanges', '#/exchanges');
 }
@@ -760,7 +766,7 @@ function renderChannels() {
 function update_pages_from_ui(sender) {
     var val = $(sender).val();
     var raw = !!$(sender).attr('data-page-start') ? $(sender).attr('data-page-start') : val;
-    var s   = fmt_strip_tags(raw);
+    var s   = fmt_escape_html(fmt_strip_tags(raw));
     update_pages(current_template, s);
 }
 
@@ -924,11 +930,13 @@ function update_filter() {
 function update_truncate() {
     var current_truncate_str =
         $(this).val().replace(new RegExp('\\D', 'g'), '');
-    if (current_truncate_str == '')
+    if (current_truncate_str == '') {
         current_truncate_str = '0';
-    if ($(this).val() != current_truncate_str)
+    }
+    if ($(this).val() != current_truncate_str) {
         $(this).val(current_truncate_str);
-    current_truncate = parseInt(current_truncate_str, 10);
+    }
+    var current_truncate = parseInt(current_truncate_str, 10);
     store_pref('truncate', current_truncate);
     partial_update();
 }
@@ -1345,6 +1353,14 @@ function collapse_multifields(params0) {
             }
         }
     }
+    if (params.hasOwnProperty('queuetype')) {
+        delete params['queuetype'];
+        params['arguments']['x-queue-type'] = queue_type;
+        if (queue_type == 'quorum') {
+            params['durable'] = true;
+            params['auto_delete'] = false;
+        }
+    }
     return params;
 }
 
@@ -1525,4 +1541,61 @@ function rename_multifield(params, from, to) {
         }
     }
     return new_params;
+}
+
+function select_queue_type(queuetype) {
+    queue_type = queuetype.value;
+    update();
+}
+
+function is_quorum(queue) {
+    return queue["arguments"]["x-queue-type"] == "quorum";
+}
+
+function is_classic(queue) {
+    return queue["arguments"]["x-queue-type"] == "classic";
+}
+
+function ensure_queues_chart_range() {
+    var range = get_pref('chart-range');
+    // Note: the queues page uses the 'basic' range type
+    var fixup_range;
+    var valid_range = false;
+    var range_type = get_chart_range_type('queues');
+    var chart_periods = CHART_RANGES[range_type];
+    for (var i = 0; i < chart_periods.length; ++i) {
+        var data = chart_periods[i];
+        var val = data[0];
+        if (range === val) {
+            valid_range = true;
+            break;
+        }
+        // If the range needs to be adjusted, use the last
+        // valid one
+        fixup_range = val;
+    }
+    if (!valid_range) {
+        store_pref('chart-range', fixup_range);
+    }
+}
+
+function get_chart_range_type(arg) {
+   /*
+    * 'arg' can be:
+    * lengths-over for the Overview page
+    * lengths-q for the per-queue page
+    * queues for setting up the queues range
+    */
+    if (arg === 'lengths-over') {
+        return 'global';
+    }
+    if (arg === 'lengths-q') {
+        return 'basic';
+    }
+    if (arg === 'queues') {
+        return 'basic';
+    }
+
+    console.log('[WARNING]: range type not found for arg: ' + arg);
+    return 'basic';
 }

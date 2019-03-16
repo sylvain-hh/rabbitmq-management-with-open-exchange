@@ -725,6 +725,9 @@ or:
         are <code>administrator</code>, <code>monitoring</code> and <code>management</code>.
         <code>password_hash</code> must be generated using the algorithm described
         <a href="http://rabbitmq.com/passwords.html#computing-password-hash">here</a>.
+        You may also specify the hash function being used by adding the <code>hashing_algorithm</code>
+        key to the body. Currently recognised algorithms are <code>rabbit_password_hashing_sha256</code>, 
+        <code>rabbit_password_hashing_sha512</code>, and <code>rabbit_password_hashing_md5</code>.
         </td>
       </tr>
       <tr>
@@ -872,7 +875,7 @@ or:
         <td></td>
         <td></td>
         <td class="path">/api/operator-policies</td>
-        <td>A list of all operator policiy overrides.</td>
+        <td>A list of all operator policy overrides.</td>
       </tr>
       <tr>
         <td>X</td>
@@ -880,7 +883,7 @@ or:
         <td></td>
         <td></td>
         <td class="path">/api/operator-policies/<i>vhost</i></td>
-        <td>A list of all operator policiy overrides in a given virtual host.</td>
+        <td>A list of all operator policy overrides in a given virtual host.</td>
       </tr>
       <tr>
         <td>X</td>
@@ -966,9 +969,11 @@ or:
         <td></td>
         <td class="path">/api/vhost-limits/<i>vhost</i>/<i>name</i></td>
         <td>
-            Set or delete per-vost limit for <code>vhost</code> with <code>name</code>.
-            Limits are set using a JSON document in the body:
-            <pre>{"max-connections": 100, "max-queues": 200}</pre>
+          Set or delete per-vhost limit for <code>vhost</code>. The <code>name</code> URL path element
+          refers to the name of the limit (<code>max-connections</code>, <code>max-queues</code>).
+          Limits are set using a JSON document in the body: <pre>{"value": 100}</pre>. Example
+          request:</br>
+          <pre>curl -4u 'guest:guest' -H 'content-type:application/json' -X PUT localhost:15672/api/vhost-limits/my-vhost/max-connections -d '{"value": 50}'</pre>
         </td>
       </tr>
     </table>
