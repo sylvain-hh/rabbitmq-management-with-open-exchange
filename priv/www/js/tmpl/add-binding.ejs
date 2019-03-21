@@ -73,9 +73,43 @@
                     <tr>
                       <td style="padding: 3px 2px 0px 0px;">Routing facilities <span class="help" id="x-routing"/> : &nbsp;</td>
                       <td style="padding: 0px 0px 0px 2px;">
-                        add to : queue(s) when <span class="argument-link" field="arguments" key="x-addq-ontrue" type="string" value="queue1">T</span><span class="argument-link" field="arguments" key="x-msg-addq-ontrue" type="string" style="font-size: x-small; padding-left: 0px;">(m)</span><span class="argument-link" field="arguments" key="x-addqre-ontrue" type="string" value="regex">re</span><span class="argument-link" field="arguments" key="x-msg-addqre-ontrue" type="string" style="font-size: x-small; padding-left: 0px;">(m)</span><span class="argument-link" field="arguments" key="x-addq!re-ontrue" type="string" value="regex">!re</span><span class="argument-link" field="arguments" key="x-msg-addq!re-ontrue" type="string" style="font-size: x-small; padding-left: 0px;">(m)</span>/<span class="argument-link" field="arguments" key="x-addq-onfalse" type="string" value="queue1">F</span><span class="argument-link" field="arguments" key="x-addqre-onfalse" type="string" value="regex">re</span><span class="argument-link" field="arguments" key="x-addq!re-onfalse" type="string" value="regex">!re</span> | exchange(s) when <span class="argument-link" field="arguments" key="x-adde-ontrue" type="string" value="exchange1">T</span><span class="argument-link" field="arguments" key="x-msg-adde-ontrue" type="string" style="font-size: x-small; padding-left: 0px;">(m)</span>/<span class="argument-link" field="arguments" key="x-adde-onfalse" type="string" value="exchange1">F</span>
+                        add to : queue(s) when
+<span class="argument-link" field="arguments" key="x-addq-ontrue" type="string" value="queue1">T</span>
+<span class="argument-link" field="arguments" key="x-msg-addq-ontrue" type="string" style="font-size: x-small; padding-left: 0px;">(m)</span>
+<span class="argument-link" field="arguments" key="x-addqre-ontrue" type="string" value="regex">re</span>
+<span class="argument-link" field="arguments" key="x-addq!re-ontrue" type="string" value="regex">!re</span>
+<span class="argument-link" field="arguments" key="x-msg-addqre-ontrue" type="string" style="font-size: x-small; padding-left: 0px;">(m)</span>
+/
+<span class="argument-link" field="arguments" key="x-addq-onfalse" type="string" value="queue1">F</span>
+<span class="argument-link" field="arguments" key="x-msg-addq-onfalse" type="string" style="font-size: x-small; padding-left: 0px;">(m)</span>
+<span class="argument-link" field="arguments" key="x-addqre-onfalse" type="string" value="regex">re</span>
+<span class="argument-link" field="arguments" key="x-addq!re-onfalse" type="string" value="regex">!re</span>
+<span class="argument-link" field="arguments" key="x-msg-addqre-onfalse" type="string" style="font-size: x-small; padding-left: 0px;">(m)</span>
+ | exchange(s) when
+<span class="argument-link" field="arguments" key="x-adde-ontrue" type="string" value="exchange1">T</span>
+<span class="argument-link" field="arguments" key="x-msg-adde-ontrue" type="string" style="font-size: x-small; padding-left: 0px;">(m)</span>
+/
+<span class="argument-link" field="arguments" key="x-adde-onfalse" type="string" value="exchange1">F</span>
+<span class="argument-link" field="arguments" key="x-msg-adde-onfalse" type="string" style="font-size: x-small; padding-left: 0px;">(m)</span>
                   <br/>
-                  del from : queue(s) when <span class="argument-link" field="arguments" key="x-delq-ontrue" type="string" value="queue1">T</span><span class="argument-link" field="arguments" key="x-delqre-ontrue" type="string" value="regex">re</span><span class="argument-link" field="arguments" key="x-delq!re-ontrue" type="string" value="regex">!re</span>/<span class="argument-link" field="arguments" key="x-delq-onfalse" type="string" value="queue1">F</span><span class="argument-link" field="arguments" key="x-delqre-onfalse" type="string" value="regex">re</span><span class="argument-link" field="arguments" key="x-delq!re-onfalse" type="string" value="regex">!re</span> | exchange(s) when <span class="argument-link" field="arguments" key="x-dele-ontrue" type="string" value="exchange1">T</span>/<span class="argument-link" field="arguments" key="x-dele-onfalse" type="string" value="exchange1">F</span>
+                  del from : queue(s) when
+<span class="argument-link" field="arguments" key="x-delq-ontrue" type="string" value="queue1">T</span>
+<span class="argument-link" field="arguments" key="x-msg-delq-ontrue" type="string" style="font-size: x-small; padding-left: 0px;">(m)</span>
+<span class="argument-link" field="arguments" key="x-delqre-ontrue" type="string" value="regex">re</span>
+<span class="argument-link" field="arguments" key="x-delq!re-ontrue" type="string" value="regex">!re</span>
+<span class="argument-link" field="arguments" key="x-msg-delqre-ontrue" type="string" style="font-size: x-small; padding-left: 0px;">(m)</span>
+/
+<span class="argument-link" field="arguments" key="x-delq-onfalse" type="string" value="queue1">F</span>
+<span class="argument-link" field="arguments" key="x-msg-delq-onfalse" type="string" style="font-size: x-small; padding-left: 0px;">(m)</span>
+<span class="argument-link" field="arguments" key="x-delqre-onfalse" type="string" value="regex">re</span>
+<span class="argument-link" field="arguments" key="x-delq!re-onfalse" type="string" value="regex">!re</span>
+<span class="argument-link" field="arguments" key="x-msg-delqre-onfalse" type="string" style="font-size: x-small; padding-left: 0px;">(m)</span>
+ | exchange(s) when
+<span class="argument-link" field="arguments" key="x-dele-ontrue" type="string" value="exchange1">T</span>
+<span class="argument-link" field="arguments" key="x-msg-dele-ontrue" type="string" style="font-size: x-small; padding-left: 0px;">(m)</span>
+/
+<span class="argument-link" field="arguments" key="x-dele-onfalse" type="string" value="exchange1">F</span>
+<span class="argument-link" field="arguments" key="x-msg-dele-onfalse" type="string" style="font-size: x-small; padding-left: 0px;">(m)</span>
                       </td>
                     </tr>
                   </table>
