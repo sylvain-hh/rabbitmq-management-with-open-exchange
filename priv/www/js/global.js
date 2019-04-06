@@ -558,8 +558,30 @@ var HELP = {
         <dd>value is an AMQP topic pattern (* is one word, # is 0 or more words); use "(ci)" to be case insensitive</dd>\
       </dl>',
 
+    'x-?pr' :
+    '<p>Match on properties; the type used depends on property :</p>\
+     <p>Use \'string\' with :</p>\
+      <ul>\
+      <li>app_id</li>\
+      <li>cluster_id</li>\
+      <li>content_encoding</li>\
+      <li>content_type</li>\
+      <li>correlation_id</li>\
+      <li>message_id</li>\
+      <li>reply_to</li>\
+      <li>type</li>\
+      <li>user_id</li>\
+      </ul>\
+     <p>Use \'number\' with :</p>\
+      <ul>\
+      <li>delivery_mode</li>\
+      <li>expiration</li>\
+      <li>priority</li>\
+      <li>timestamp</li>\
+      </ul>',
+
     'x-?dt' :
-    'REGEX match on the UTC or local datetime the message is processed by the exchange; value is evaluated ONCE per exchange entry.<br/><br/>The string format of the datetime is : "YYYYMMDD WW DW HHmmSS" (3 spaces) with :<br/>YYYY MM DD : year (4 digits) month (01..12) day (01..31)<br/>WW : the week number defined by ISO 8601 (01..53)<br/>DW : day of the week (1 for monday.. 7 is sunday)<br/>HH mm SS : hour (00..23) minute (00..59) second (00..59).',
+    'REGEX match on the UTC or local datetime the message is processed by the exchange; value is evaluated ONCE per exchange entry.<br/><br/>The string format of the returned datetime is : "YYYYMMDD HHmmSS d WW" (3 spaces) with :<br/>YYYYMMDD : year (4 digits) month (01..12) day (01..31)<br/>HHmmSS : hour (00..23) minute (00..59) second (00..59)<br/>d : day of week (1 for monday.. 7 is sunday)<br/>WW : week number as defined by ISO 8601 (01..53)',
 
     'x-maindest':
     'Change value of the primary destination.\
@@ -571,10 +593,10 @@ var HELP = {
       </dl>',
 
     'x-order':
-    'Define the evaluation order of binding as an integer between 2000 and 15999; default is 9000. Other values are reserved for future use.',
+    'Define the evaluation order of binding as an integer between 100 and 999999; default is 10000. Other values are reserved for future use.',
 
     'x-goto':
-    'Define the next binding to evaluate according to its order and depending on the current binding\'s evaluation; can only go formard and must be an integer between 2000 and 15999.',
+    'Define the next binding to evaluate according to its order and depending on the current binding\'s evaluation; can only go formard and must be an integer between 100 and 999999.',
 
     'x-stop':
     'Stop evaluate next bindings for that exchange depending on the current binding\'s evaluation.',
