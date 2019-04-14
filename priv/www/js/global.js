@@ -581,7 +581,7 @@ var HELP = {
       </ul>',
 
     'x-?dt' :
-    'REGEX match on the UTC or local datetime the message is processed by the exchange; value is evaluated ONCE per exchange entry.<br/><br/>The string format of the returned datetime is : "YYYYMMDD HHmmSS d WW" (3 spaces) with :<br/>YYYYMMDD : year (4 digits) month (01..12) day (01..31)<br/>HHmmSS : hour (00..23) minute (00..59) second (00..59)<br/>d : day of week (1 for monday.. 7 is sunday)<br/>WW : week number as defined by ISO 8601 (01..53)',
+    'REGEX match on the UTC or local datetime the message is processed by the exchange; value is evaluated ONCE per exchange entry.<br/><br/>The string format of the returned datetime is : "YYYYMMDD HHmmSS d We" (3 spaces) with :<br/>YYYYMMDD : year (4 digits) month (01..12) day (01..31)<br/>HHmmSS : hour (00..23) minute (00..59) second (00..59)<br/>d : day of week (1 for monday.. 7 is sunday)<br/>We : week number as defined by ISO 8601 (01..53)',
 
     'x-maindest':
     'Change value of the primary destination.\
