@@ -1,13 +1,13 @@
 <%= maybe_truncate(bindings) %>
 <% if (bindings.length > 0)
 {
-  if (typeof exchange_type != 'undefined' && exchange_type == 'x-open')
+  if (typeof parent != 'undefined' && parent.type == 'x-open')
   {
     function get_binding_order(ob)
     {
-      // Default order is 200
+      // Default order is 10000
       if (ob.arguments.hasOwnProperty('x-order') == false)
-        return 200;
+        return 10000;
       return ob.arguments["x-order"];
     }
     bindings.sort(function(a,b) {
@@ -28,7 +28,7 @@
 <% } else { %>
           <th>From</th>
 <% } %>
-<% if (! (typeof exchange_type != 'undefined' && exchange_type == 'x-open')) { %>
+<% if (! (typeof parent != 'undefined' && parent.type == 'x-open')) { %>
           <th>Routing key</th>
 <% } %>
           <th>Arguments</th>
@@ -65,7 +65,7 @@
                </span>
              </td>
 <% } %>
-<% if (! (typeof exchange_type != 'undefined' && exchange_type == 'x-open')) { %>
+<% if (! (typeof parent != 'undefined' && parent.type == 'x-open')) { %>
              <td><%= fmt_string(binding.routing_key) %></td>
 <% } %>
              <td><%= fmt_table_short(binding.arguments) %></td>
