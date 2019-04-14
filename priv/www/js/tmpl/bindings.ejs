@@ -1,24 +1,35 @@
 <%= maybe_truncate(bindings) %>
 <% if (bindings.length > 0)
 {
-  if (typeof parent != 'undefined' && parent.type == 'x-open')
-  {
+    // Open Exchange rules..
     function get_binding_order(ob)
     {
+      if (typeof(ob.arguments) != 'undefined' && ob.arguments.hasOwnProperty('x-order'))
+        return ob.arguments["x-order"];
       // Default order is 10000
-      if (ob.arguments.hasOwnProperty('x-order') == false)
-        return 10000;
-      return ob.arguments["x-order"];
+      return 10000;
     }
-    bindings.sort(function(a,b) {
-      var bindOrdA = get_binding_order(a), bindOrdB = get_binding_order(b);
-      if (bindOrdA == bindOrdB)
-        return 0;
-      else if (bindOrdA < bindOrdB)
-        return -1;
-      return 1;
-    });
-  }
+    if (mode == 'exchange_source')
+    {
+        bindings.sort(function(a,b) {
+          var bindOrdA = get_binding_order(a), bindOrdB = get_binding_order(b);
+
+          return bindOrdA - bindOrdB;
+        });
+    }
+    else if (mode == 'queue' || mode == 'exchange_destination')
+    {
+        bindings.sort(function(a,b) {
+          var bindOrdA = get_binding_order(a), bindOrdB = get_binding_order(b);
+
+          if (a.source == b.source)
+            return bindOrdA - bindOrdB;
+          else if (a.source > b.source)
+            return 1;
+          else 
+            return -1;
+        });
+    }
 %>
     <table class="list updatable">
       <thead>
@@ -28,7 +39,7 @@
 <% } else { %>
           <th>From</th>
 <% } %>
-<% if (! (typeof parent != 'undefined' && parent.type == 'x-open')) { %>
+<% if (typeof(exchange_type) == 'undefined' || exchange_type != 'x-open') { %>
           <th>Routing key</th>
 <% } %>
           <th>Arguments</th>
@@ -65,7 +76,7 @@
                </span>
              </td>
 <% } %>
-<% if (! (typeof parent != 'undefined' && parent.type == 'x-open')) { %>
+<% if (typeof(exchange_type) == 'undefined' || exchange_type != 'x-open') { %>
              <td><%= fmt_string(binding.routing_key) %></td>
 <% } %>
              <td><%= fmt_table_short(binding.arguments) %></td>
